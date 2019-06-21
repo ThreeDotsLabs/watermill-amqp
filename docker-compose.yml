@@ -1,0 +1,10 @@
+# for Watermill development purposes.
+# For Watermill based application docker please check https://watermill.io/docs/getting-started/
+
+version: '3'
+services:
+  rabbitmq:
+    image: rabbitmq:3.7-management
+    restart: unless-stopped
+    ports:
+      - 5672:5672
