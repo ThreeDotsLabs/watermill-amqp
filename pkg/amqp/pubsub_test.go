@@ -9,7 +9,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/infrastructure"
-	"github.com/ThreeDotsLabs/watermill/message/infrastructure/amqp"
+	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 )
 
 func amqpURI() string {
