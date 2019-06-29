@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/infrastructure"
-	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 )
 
 func amqpURI() string {
@@ -71,7 +71,7 @@ func TestPublishSubscribe_pubsub(t *testing.T) {
 		infrastructure.Features{
 			ConsumerGroups:        true,
 			ExactlyOnceDelivery:   false,
-			GuaranteedOrder:       true,
+			GuaranteedOrder:       false, // order is guaranteed when publishing in transaction
 			Persistent:            true,
 			RestartServiceCommand: []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
@@ -106,7 +106,7 @@ func TestPublishSubscribe_queue(t *testing.T) {
 		infrastructure.Features{
 			ConsumerGroups:        false,
 			ExactlyOnceDelivery:   false,
-			GuaranteedOrder:       true,
+			GuaranteedOrder:       false, // order is guaranteed when publishing in transaction
 			Persistent:            true,
 			RestartServiceCommand: []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
