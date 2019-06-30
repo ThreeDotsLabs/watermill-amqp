@@ -65,15 +65,38 @@ func createPubSubWithConsumerGroup(t *testing.T, consumerGroup string) (message.
 	return publisher, subscriber
 }
 
+func createTransactionalPubSub(t *testing.T) (message.Publisher, message.Subscriber) {
+	config := amqp.NewDurablePubSubConfig(
+		amqpURI(),
+		amqp.GenerateQueueNameTopicNameWithSuffix("test"),
+	)
+	config.Publish.Transactional = true
+
+	publisher, err := amqp.NewPublisher(
+		config,
+		watermill.NewStdLogger(true, true),
+	)
+	require.NoError(t, err)
+
+	subscriber, err := amqp.NewSubscriber(
+		config,
+		watermill.NewStdLogger(true, true),
+	)
+	require.NoError(t, err)
+
+	return publisher, subscriber
+}
+
 func TestPublishSubscribe_pubsub(t *testing.T) {
 	infrastructure.TestPubSub(
 		t,
 		infrastructure.Features{
-			ConsumerGroups:        true,
-			ExactlyOnceDelivery:   false,
-			GuaranteedOrder:       false, // order is guaranteed when publishing in transaction
-			Persistent:            true,
-			RestartServiceCommand: []string{"docker", "restart", "watermill_rabbitmq_1"},
+			ConsumerGroups:                      true,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+			RestartServiceCommand:               []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
 		createPubSub,
 		createPubSubWithConsumerGroup,
@@ -104,11 +127,12 @@ func TestPublishSubscribe_queue(t *testing.T) {
 	infrastructure.TestPubSub(
 		t,
 		infrastructure.Features{
-			ConsumerGroups:        false,
-			ExactlyOnceDelivery:   false,
-			GuaranteedOrder:       false, // order is guaranteed when publishing in transaction
-			Persistent:            true,
-			RestartServiceCommand: []string{"docker", "restart", "watermill_rabbitmq_1"},
+			ConsumerGroups:                      false,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+			RestartServiceCommand:               []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
 		createQueuePubSub,
 		nil,
@@ -116,37 +140,16 @@ func TestPublishSubscribe_queue(t *testing.T) {
 }
 
 func TestPublishSubscribe_transactional_publish(t *testing.T) {
-	createTransactionalPubSub := func(t *testing.T) (message.Publisher, message.Subscriber) {
-		config := amqp.NewDurablePubSubConfig(
-			amqpURI(),
-			amqp.GenerateQueueNameTopicNameWithSuffix("test"),
-		)
-		config.Publish.Transactional = true
-
-		publisher, err := amqp.NewPublisher(
-			config,
-			watermill.NewStdLogger(true, true),
-		)
-		require.NoError(t, err)
-
-		subscriber, err := amqp.NewSubscriber(
-			config,
-			watermill.NewStdLogger(true, true),
-		)
-		require.NoError(t, err)
-
-		return publisher, subscriber
-	}
-
 	infrastructure.TestPublishSubscribe(
 		t,
 		createTransactionalPubSub,
 		infrastructure.Features{
-			ConsumerGroups:        true,
-			ExactlyOnceDelivery:   false,
-			GuaranteedOrder:       true,
-			Persistent:            true,
-			RestartServiceCommand: []string{"docker", "restart", "watermill_rabbitmq_1"},
+			ConsumerGroups:                      true,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+			RestartServiceCommand:               []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
 	)
 }
