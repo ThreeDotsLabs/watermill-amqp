@@ -19,7 +19,7 @@ func TestPublishSubscribe_reconnect(t *testing.T) {
 				GuaranteedOrder:                     true,
 				GuaranteedOrderWithSingleSubscriber: true,
 				Persistent:                          true,
-				RestartServiceCommand:               []string{"docker-compose", "restart", "rabbitmq"},
+				RestartServiceCommand:               []string{"docker", "restart", "project_rabbitmq_1"},
 			},
 		},
 		createTransactionalPubSub,
