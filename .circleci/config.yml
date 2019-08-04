@@ -52,6 +52,11 @@ jobs:
     environment:
       TEST_FLAGS: "-tags=stress -timeout=30m"
 
+  tests_reconnect:
+    <<: *tests_steps
+    environment:
+      TEST_FLAGS: "-tags=reconnect"
+
   tests_short:
     <<: *tests_steps
     environment:

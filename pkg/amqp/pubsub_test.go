@@ -96,7 +96,6 @@ func TestPublishSubscribe_pubsub(t *testing.T) {
 			GuaranteedOrder:                     true,
 			GuaranteedOrderWithSingleSubscriber: true,
 			Persistent:                          true,
-			RestartServiceCommand:               []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
 		createPubSub,
 		createPubSubWithConsumerGroup,
@@ -132,7 +131,6 @@ func TestPublishSubscribe_queue(t *testing.T) {
 			GuaranteedOrder:                     true,
 			GuaranteedOrderWithSingleSubscriber: true,
 			Persistent:                          true,
-			RestartServiceCommand:               []string{"docker", "restart", "watermill_rabbitmq_1"},
 		},
 		createQueuePubSub,
 		nil,
@@ -142,14 +140,16 @@ func TestPublishSubscribe_queue(t *testing.T) {
 func TestPublishSubscribe_transactional_publish(t *testing.T) {
 	infrastructure.TestPublishSubscribe(
 		t,
-		createTransactionalPubSub,
-		infrastructure.Features{
-			ConsumerGroups:                      true,
-			ExactlyOnceDelivery:                 false,
-			GuaranteedOrder:                     true,
-			GuaranteedOrderWithSingleSubscriber: true,
-			Persistent:                          true,
-			RestartServiceCommand:               []string{"docker", "restart", "watermill_rabbitmq_1"},
+		infrastructure.TestContext{
+			TestID: infrastructure.NewTestID(),
+			Features: infrastructure.Features{
+				ConsumerGroups:                      true,
+				ExactlyOnceDelivery:                 false,
+				GuaranteedOrder:                     true,
+				GuaranteedOrderWithSingleSubscriber: true,
+				Persistent:                          true,
+			},
 		},
+		createTransactionalPubSub,
 	)
 }
