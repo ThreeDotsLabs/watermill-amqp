@@ -52,11 +52,6 @@ jobs:
     environment:
       TEST_FLAGS: "-tags=stress -timeout=30m"
 
-  tests_reconnect:
-    <<: *tests_steps
-    environment:
-      TEST_FLAGS: "-tags=reconnect"
-
   tests_short:
     <<: *tests_steps
     environment:
@@ -73,6 +68,10 @@ workflows:
     jobs:
       - build
       - tests_full:
+          filters:
+            branches:
+              only:
+                - master
           requires:
             - build
       - tests_stress:
@@ -90,8 +89,5 @@ workflows:
           requires:
             - build
       - tests_race:
-          requires:
-            - build
-      - tests_reconnect:
           requires:
             - build
