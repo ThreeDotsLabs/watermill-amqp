@@ -37,5 +37,4 @@ generate_gomod:
 	go install ./...
 	sed -i '\|go |d' go.mod
 	go mod edit -fmt
-	go mod tidy
 

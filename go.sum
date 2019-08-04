@@ -1,11 +1,13 @@
-github.com/ThreeDotsLabs/watermill v0.4.1-0.20190630120009-c8c9d3c9a6e1 h1:Ytpx26z/yAI7L5+nxl0qKcvn79vPldFsGKZpIiTb0mk=
-github.com/ThreeDotsLabs/watermill v0.4.1-0.20190630120009-c8c9d3c9a6e1/go.mod h1:3eFkT0wUZ8Ywp6NqWHJ8Y0IrvjkKa75yLLUUUCHUZAo=
+github.com/ThreeDotsLabs/watermill v0.4.1-0.20190804090002-e46bea54b57b h1:g/5eTb9HUYDUFT1slRCiykhrKcXGSXJd2VGz4vTyX38=
+github.com/ThreeDotsLabs/watermill v0.4.1-0.20190804090002-e46bea54b57b/go.mod h1:3eFkT0wUZ8Ywp6NqWHJ8Y0IrvjkKa75yLLUUUCHUZAo=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/cenkalti/backoff v2.2.0+incompatible h1:8qVbEY6GLhoLlLi1Ac2ZkVhedNwlhQXc39qivKp9+GI=
 github.com/cenkalti/backoff v2.2.0+incompatible/go.mod h1:b6Nc7NRH5C4aCISLry0tLnTjcuTEvoiqcWDdsU0sOGM=
+github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
+github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
