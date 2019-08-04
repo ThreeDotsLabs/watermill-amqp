@@ -9,10 +9,19 @@ import (
 )
 
 func TestPublishSubscribe_reconnect(t *testing.T) {
-	infrastructure.TestReconnect(t, createPubSub(t), infrastructure.Features{
-		ConsumerGroups:      true,
-		ExactlyOnceDelivery: false,
-		GuaranteedOrder:     false,
-		Persistent:          true,
-	})
+	infrastructure.TestReconnect(
+		t,
+		infrastructure.TestContext{
+			TestID: infrastructure.NewTestID(),
+			Features: infrastructure.Features{
+				ConsumerGroups:                      true,
+				ExactlyOnceDelivery:                 false,
+				GuaranteedOrder:                     true,
+				GuaranteedOrderWithSingleSubscriber: true,
+				Persistent:                          true,
+				RestartServiceCommand:               []string{"docker-compose", "restart", "rabbitmq"},
+			},
+		},
+		createTransactionalPubSub,
+	)
 }
