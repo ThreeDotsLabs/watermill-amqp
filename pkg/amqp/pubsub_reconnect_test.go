@@ -5,15 +5,15 @@ package amqp_test
 import (
 	"testing"
 
-	"github.com/ThreeDotsLabs/watermill/message/infrastructure"
+	"github.com/ThreeDotsLabs/watermill/pubsub/tests"
 )
 
 func TestPublishSubscribe_reconnect(t *testing.T) {
-	infrastructure.TestReconnect(
+	tests.TestReconnect(
 		t,
-		infrastructure.TestContext{
-			TestID: infrastructure.NewTestID(),
-			Features: infrastructure.Features{
+		tests.TestContext{
+			TestID: tests.NewTestID(),
+			Features: tests.Features{
 				ConsumerGroups:                      true,
 				ExactlyOnceDelivery:                 false,
 				GuaranteedOrder:                     true,
