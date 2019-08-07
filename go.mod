@@ -1,7 +1,7 @@
 module github.com/ThreeDotsLabs/watermill-amqp
 
 require (
-	github.com/ThreeDotsLabs/watermill v0.4.1-0.20190807203253-577f2aca3bda
+	github.com/ThreeDotsLabs/watermill v1.0.0-rc.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/pkg/errors v0.8.1
