@@ -9,7 +9,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/message"
-	"github.com/ThreeDotsLabs/watermill/message/infrastructure"
+	"github.com/ThreeDotsLabs/watermill/pubsub/tests"
 )
 
 func amqpURI() string {
@@ -88,9 +88,9 @@ func createTransactionalPubSub(t *testing.T) (message.Publisher, message.Subscri
 }
 
 func TestPublishSubscribe_pubsub(t *testing.T) {
-	infrastructure.TestPubSub(
+	tests.TestPubSub(
 		t,
-		infrastructure.Features{
+		tests.Features{
 			ConsumerGroups:                      true,
 			ExactlyOnceDelivery:                 false,
 			GuaranteedOrder:                     true,
@@ -123,9 +123,9 @@ func createQueuePubSub(t *testing.T) (message.Publisher, message.Subscriber) {
 }
 
 func TestPublishSubscribe_queue(t *testing.T) {
-	infrastructure.TestPubSub(
+	tests.TestPubSub(
 		t,
-		infrastructure.Features{
+		tests.Features{
 			ConsumerGroups:                      false,
 			ExactlyOnceDelivery:                 false,
 			GuaranteedOrder:                     true,
@@ -138,11 +138,11 @@ func TestPublishSubscribe_queue(t *testing.T) {
 }
 
 func TestPublishSubscribe_transactional_publish(t *testing.T) {
-	infrastructure.TestPublishSubscribe(
+	tests.TestPublishSubscribe(
 		t,
-		infrastructure.TestContext{
-			TestID: infrastructure.NewTestID(),
-			Features: infrastructure.Features{
+		tests.TestContext{
+			TestID: tests.NewTestID(),
+			Features: tests.Features{
 				ConsumerGroups:                      true,
 				ExactlyOnceDelivery:                 false,
 				GuaranteedOrder:                     true,
