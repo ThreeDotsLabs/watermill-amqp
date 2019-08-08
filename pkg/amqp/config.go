@@ -7,7 +7,7 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/streadway/amqp"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v3"
 
 	"github.com/pkg/errors"
 )

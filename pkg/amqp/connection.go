@@ -3,7 +3,7 @@ package amqp
 import (
 	"sync"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v3"
 	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
 
