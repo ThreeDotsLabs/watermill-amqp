@@ -2,8 +2,11 @@ package amqp
 
 import (
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
+
+	"github.com/ThreeDotsLabs/watermill"
 )
 
 const MessageUUIDHeaderKey = "_watermill_message_uuid"
@@ -36,6 +39,14 @@ type DefaultMarshaler struct {
 	// not be restored to durable queues, persistent messages will be restored to
 	// durable queues and lost on non-durable queues during server restart.
 	NotPersistentDeliveryMode bool
+
+	// When false (default), a UUID will be generated if and when the
+	// MessageUUIDHeaderKey header is missing from the incoming message.
+
+	// When true, the
+	// MessageUUIDHeaderKey becomes a hard requirement
+	// in order to successfully unmarshal the message.
+	ExpectMessageUUIDHeader bool
 }
 
 func (d DefaultMarshaler) Marshal(msg *message.Message) (amqp.Publishing, error) {
@@ -44,6 +55,7 @@ func (d DefaultMarshaler) Marshal(msg *message.Message) (amqp.Publishing, error)
 	for key, value := range msg.Metadata {
 		headers[key] = value
 	}
+
 	headers[MessageUUIDHeaderKey] = msg.UUID
 
 	publishing := amqp.Publishing{
@@ -61,15 +73,30 @@ func (d DefaultMarshaler) Marshal(msg *message.Message) (amqp.Publishing, error)
 	return publishing, nil
 }
 
-func (DefaultMarshaler) Unmarshal(amqpMsg amqp.Delivery) (*message.Message, error) {
+func (d DefaultMarshaler) Unmarshal(amqpMsg amqp.Delivery) (*message.Message, error) {
 	msgUUID, ok := amqpMsg.Headers[MessageUUIDHeaderKey]
 	if !ok {
-		return nil, errors.Errorf("missing %s header", MessageUUIDHeaderKey)
+		if d.ExpectMessageUUIDHeader {
+			return nil, errors.Errorf("missing %s header", MessageUUIDHeaderKey)
+		}
 	}
 
 	msgUUIDStr, ok := msgUUID.(string)
 	if !ok {
 		return nil, errors.Errorf("message UUID is not a string, but: %#v", msgUUID)
+	}
+
+	if msgUUIDStr == "" {
+		if d.ExpectMessageUUIDHeader {
+			return nil, errors.Errorf("message UUID is blank and ExpectMessageUUIDHeader is enabled")
+		}
+		// No UUID can have unintended downstream effects
+		msgUUIDStr = watermill.NewUUID()
+	} else {
+		_, err := uuid.Parse(msgUUIDStr)
+		if err != nil {
+			return nil, errors.Errorf("invalid UUID format passed: %s", msgUUIDStr)
+		}
 	}
 
 	msg := message.NewMessage(msgUUIDStr, amqpMsg.Body)

@@ -13,7 +13,12 @@ import (
 )
 
 func TestDefaultMarshaler(t *testing.T) {
-	marshaler := amqp.DefaultMarshaler{}
+	marshaler := amqp.DefaultMarshaler{
+		PostprocessPublishing: func(publishing stdAmqp.Publishing) stdAmqp.Publishing {
+			publishing.Headers[amqp.MessageUUIDHeaderKey] = ""
+			return publishing
+		},
+	}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -24,7 +29,8 @@ func TestDefaultMarshaler(t *testing.T) {
 	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
 	require.NoError(t, err)
 
-	assert.True(t, msg.Equals(unmarshaledMsg))
+	assert.Equal(t, msg.Payload, unmarshaledMsg.Payload)
+	assert.Equal(t, msg.Metadata, unmarshaledMsg.Metadata)
 	assert.Equal(t, marshaled.DeliveryMode, stdAmqp.Persistent)
 }
 
@@ -87,6 +93,27 @@ func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		m.Unmarshal(consumedMsg)
 	}
+}
+
+func TestDefaultMarshaler_expect_uuid_header(t *testing.T) {
+	marshaler := amqp.DefaultMarshaler{
+		ExpectMessageUUIDHeader: true,
+		PostprocessPublishing: func(publishing stdAmqp.Publishing) stdAmqp.Publishing {
+			publishing.Headers[amqp.MessageUUIDHeaderKey] = nil
+			return publishing
+		},
+	}
+
+	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
+	msg.Metadata.Set("foo", "bar")
+
+	marshaled, err := marshaler.Marshal(msg)
+	require.NoError(t, err)
+
+	_, err = marshaler.Unmarshal(publishingToDelivery(marshaled))
+	require.Error(t, err)
+
+	assert.Equal(t, marshaled.DeliveryMode, stdAmqp.Persistent)
 }
 
 func publishingToDelivery(marshaled stdAmqp.Publishing) stdAmqp.Delivery {
