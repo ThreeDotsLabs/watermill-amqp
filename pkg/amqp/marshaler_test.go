@@ -21,11 +21,46 @@ func TestDefaultMarshaler(t *testing.T) {
 	marshaled, err := marshaler.Marshal(msg)
 	require.NoError(t, err)
 
+	_, headerExists := marshaled.Headers[amqp.DefaultMessageUUIDHeaderKey]
+	assert.True(t, headerExists, "header %s doesn't exist", amqp.DefaultMessageUUIDHeaderKey)
+
 	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
 	require.NoError(t, err)
 
 	assert.True(t, msg.Equals(unmarshaledMsg))
 	assert.Equal(t, marshaled.DeliveryMode, stdAmqp.Persistent)
+}
+
+func TestDefaultMarshaler_without_message_uuid(t *testing.T) {
+	marshaler := amqp.DefaultMarshaler{}
+
+	msg := message.NewMessage(watermill.NewUUID(), nil)
+	marshaled, err := marshaler.Marshal(msg)
+	require.NoError(t, err)
+
+	delete(marshaled.Headers, amqp.DefaultMessageUUIDHeaderKey)
+
+	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
+	require.NoError(t, err)
+
+	assert.Empty(t, unmarshaledMsg.UUID)
+}
+
+func TestDefaultMarshaler_configured_message_uuid_header(t *testing.T) {
+	headerKey := "custom_msg_uuid"
+	marshaler := amqp.DefaultMarshaler{MessageUUIDHeaderKey: headerKey}
+
+	msg := message.NewMessage(watermill.NewUUID(), nil)
+	marshaled, err := marshaler.Marshal(msg)
+	require.NoError(t, err)
+
+	_, headerExists := marshaled.Headers[headerKey]
+	assert.True(t, headerExists, "header %s doesn't exist", headerKey)
+
+	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
+	require.NoError(t, err)
+
+	assert.Equal(t, msg.UUID, unmarshaledMsg.UUID)
 }
 
 func TestDefaultMarshaler_not_persistent(t *testing.T) {
