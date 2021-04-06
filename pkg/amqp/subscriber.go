@@ -146,8 +146,9 @@ func (s *Subscriber) runSubscriber(
 		return
 	}
 	defer func() {
-		err := channel.Close()
-		s.logger.Error("Failed to close channel", err, logFields)
+		if err := channel.Close(); err != nil {
+			s.logger.Error("Failed to close channel", err, logFields)
+		}
 	}()
 
 	notifyCloseChannel := channel.NotifyClose(make(chan *amqp.Error))
