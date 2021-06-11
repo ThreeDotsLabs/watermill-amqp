@@ -4,10 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
 )
@@ -47,7 +46,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 
 	logFields := watermill.LogFields{"topic": topic}
 
-	out := make(chan *message.Message, 0)
+	out := make(chan *message.Message)
 
 	queueName := s.config.Queue.GenerateName(topic)
 	logFields["amqp_queue_name"] = queueName
@@ -181,11 +180,13 @@ func (s *Subscriber) openSubscribeChannel(logFields watermill.LogFields) (*amqp.
 	s.logger.Debug("Channel opened", logFields)
 
 	if s.config.Consume.Qos != (QosConfig{}) {
-		err = channel.Qos(
+		if err := channel.Qos(
 			s.config.Consume.Qos.PrefetchCount,
 			s.config.Consume.Qos.PrefetchSize,
 			s.config.Consume.Qos.Global,
-		)
+		); err != nil {
+			return nil, errors.Wrap(err, "failed to set channel Qos")
+		}
 		s.logger.Debug("Qos set", logFields)
 	}
 
