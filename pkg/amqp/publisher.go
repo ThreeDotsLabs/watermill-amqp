@@ -1,6 +1,8 @@
 package amqp
 
 import (
+	"sync"
+
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	multierror "github.com/hashicorp/go-multierror"
@@ -11,7 +13,9 @@ import (
 type Publisher struct {
 	*connectionWrapper
 
-	config Config
+	config                  Config
+	publishBindingsLock     sync.RWMutex
+	publishBindingsPrepared map[string]struct{}
 }
 
 func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, error) {
@@ -24,7 +28,12 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 		return nil, err
 	}
 
-	return &Publisher{conn, config}, nil
+	return &Publisher{
+		conn,
+		config,
+		sync.RWMutex{},
+		make(map[string]struct{}),
+	}, nil
 }
 
 // Publish publishes messages to AMQP broker.
@@ -154,9 +163,6 @@ func (p *Publisher) preparePublishBindings(topic string, channel *amqp.Channel) 
 		}
 	}
 
-	if p.publishBindingsPrepared == nil {
-		p.publishBindingsPrepared = make(map[string]struct{})
-	}
 	p.publishBindingsPrepared[topic] = struct{}{}
 
 	return nil

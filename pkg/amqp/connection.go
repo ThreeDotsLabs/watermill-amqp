@@ -3,11 +3,10 @@ package amqp
 import (
 	"sync"
 
+	"github.com/ThreeDotsLabs/watermill"
 	"github.com/cenkalti/backoff/v3"
 	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
-
-	"github.com/ThreeDotsLabs/watermill"
 )
 
 type connectionWrapper struct {
@@ -18,9 +17,6 @@ type connectionWrapper struct {
 	amqpConnection     *amqp.Connection
 	amqpConnectionLock sync.Mutex
 	connected          chan struct{}
-
-	publishBindingsLock     sync.RWMutex
-	publishBindingsPrepared map[string]struct{}
 
 	closing chan struct{}
 	closed  bool
@@ -123,7 +119,7 @@ func (c *connectionWrapper) IsConnected() bool {
 
 func (c *connectionWrapper) handleConnectionClose() {
 	for {
-		c.logger.Debug("handleConnectionClose is waiting for p.connected", nil)
+		c.logger.Debug("handleConnectionClose is waiting for c.connected", nil)
 		<-c.connected
 		c.logger.Debug("handleConnectionClose is for connection or Pub/Sub close", nil)
 
