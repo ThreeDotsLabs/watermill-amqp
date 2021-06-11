@@ -3,12 +3,11 @@ package amqp_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/message"
 	stdAmqp "github.com/streadway/amqp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,9 +100,15 @@ func BenchmarkDefaultMarshaler_Marshal(b *testing.B) {
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
 
+	var err error
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.Marshal(msg)
+		_, err = m.Marshal(msg)
 	}
+	b.StopTimer()
+
+	assert.NoError(b, err)
 }
 
 func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
@@ -119,9 +124,13 @@ func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
 
 	consumedMsg := publishingToDelivery(marshaled)
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.Unmarshal(consumedMsg)
+		_, err = m.Unmarshal(consumedMsg)
 	}
+	b.StopTimer()
+
+	assert.NoError(b, err)
 }
 
 func publishingToDelivery(marshaled stdAmqp.Publishing) stdAmqp.Delivery {
