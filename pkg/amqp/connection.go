@@ -59,12 +59,11 @@ func (c *connectionWrapper) Close() error {
 	defer c.logger.Info("Closed AMQP Pub/Sub", nil)
 
 	c.publishingWg.Wait()
+	c.subscribingWg.Wait()
 
 	if err := c.amqpConnection.Close(); err != nil {
 		c.logger.Error("Connection close error", err, nil)
 	}
-
-	c.subscribingWg.Wait()
 
 	return nil
 }
@@ -128,6 +127,7 @@ func (c *connectionWrapper) handleConnectionClose() {
 		select {
 		case <-c.closing:
 			c.logger.Debug("Stopping handleConnectionClose", nil)
+			c.connected = make(chan struct{})
 			return
 		case err := <-notifyCloseConnection:
 			c.connected = make(chan struct{})
