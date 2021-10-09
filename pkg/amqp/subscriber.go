@@ -70,6 +70,15 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 		for {
 			s.logger.Debug("Waiting for s.connected or s.closing in ReconnectLoop", logFields)
 
+			// to avoid race conditions with <-s.connected
+			select {
+			case <-s.closing:
+				s.logger.Debug("Stopping ReconnectLoop (already closing)", logFields)
+				break ReconnectLoop
+			default:
+				// not closing yet
+			}
+
 			select {
 			case <-s.connected:
 				s.logger.Debug("Connection established in ReconnectLoop", logFields)
