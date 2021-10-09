@@ -153,3 +153,37 @@ func TestPublishSubscribe_transactional_publish(t *testing.T) {
 		createTransactionalPubSub,
 	)
 }
+
+//func TestClose(t *testing.T) {
+//	t.Parallel()
+//
+//	amqpConfig := amqp.NewDurablePubSubConfig(amqpURI(), func(topic string) string {
+//		return "local-" + topic
+//	})
+//
+//	s, err := amqp.NewSubscriber(amqpConfig, watermill.NewStdLogger(true, true))
+//	require.NoError(t, err)
+//
+//	pub, err := amqp.NewPublisher(amqpConfig, watermill.NewStdLogger(true, true))
+//
+//	// todo
+//	topicName := "test"
+//
+//	go func() {
+//		msgs, err := s.Subscribe(context.Background(), topicName)
+//		require.NoError(t, err)
+//
+//		for m := range msgs {
+//			log.Println(m)
+//		}
+//	}()
+//
+//	time.Sleep(time.Second)
+//
+//	go tests.AddSimpleMessagesParallel(t, 50, pub, topicName, 50)
+//
+//	time.Sleep(time.Second * 5)
+//
+//	err = s.Close()
+//	require.NoError(t, err)
+//}
