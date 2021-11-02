@@ -2,6 +2,7 @@ package amqp
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/cenkalti/backoff/v3"
@@ -9,8 +10,9 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type connectionWrapper struct {
-	config Config
+// ConnectionWrapper manages an AMQP connection.
+type ConnectionWrapper struct {
+	config ConnectionConfig
 
 	logger watermill.LoggerAdapter
 
@@ -19,21 +21,21 @@ type connectionWrapper struct {
 	connected          chan struct{}
 
 	closing chan struct{}
-	closed  bool
+	closed  uint32
 
-	publishingWg  sync.WaitGroup
-	subscribingWg sync.WaitGroup
+	connectionWaitGroup sync.WaitGroup
 }
 
-func newConnection(
-	config Config,
+// NewConnection returns a new connection wrapper.
+func NewConnection(
+	config ConnectionConfig,
 	logger watermill.LoggerAdapter,
-) (*connectionWrapper, error) {
+) (*ConnectionWrapper, error) {
 	if logger == nil {
 		logger = watermill.NopLogger{}
 	}
 
-	pubSub := &connectionWrapper{
+	pubSub := &ConnectionWrapper{
 		config:    config,
 		logger:    logger,
 		closing:   make(chan struct{}),
@@ -48,18 +50,18 @@ func newConnection(
 	return pubSub, nil
 }
 
-func (c *connectionWrapper) Close() error {
-	if c.closed {
+func (c *ConnectionWrapper) Close() error {
+	if !atomic.CompareAndSwapUint32(&c.closed, 0, 1) {
+		// Already closed.
 		return nil
 	}
-	c.closed = true
+
 	close(c.closing)
 
 	c.logger.Info("Closing AMQP Pub/Sub", nil)
 	defer c.logger.Info("Closed AMQP Pub/Sub", nil)
 
-	c.publishingWg.Wait()
-	c.subscribingWg.Wait()
+	c.connectionWaitGroup.Wait()
 
 	if err := c.amqpConnection.Close(); err != nil {
 		c.logger.Error("Connection close error", err, nil)
@@ -68,12 +70,12 @@ func (c *connectionWrapper) Close() error {
 	return nil
 }
 
-func (c *connectionWrapper) connect() error {
+func (c *ConnectionWrapper) connect() error {
 	c.amqpConnectionLock.Lock()
 	defer c.amqpConnectionLock.Unlock()
 
-	amqpConfig := c.config.Connection.AmqpConfig
-	if amqpConfig != nil && amqpConfig.TLSClientConfig != nil && c.config.Connection.TLSConfig != nil {
+	amqpConfig := c.config.AmqpConfig
+	if amqpConfig != nil && amqpConfig.TLSClientConfig != nil && c.config.TLSConfig != nil {
 		return errors.New("both Config.AmqpConfig.TLSClientConfig and Config.TLSConfig are set")
 	}
 
@@ -81,11 +83,11 @@ func (c *connectionWrapper) connect() error {
 	var err error
 
 	if amqpConfig != nil {
-		connection, err = amqp.DialConfig(c.config.Connection.AmqpURI, *c.config.Connection.AmqpConfig)
-	} else if c.config.Connection.TLSConfig != nil {
-		connection, err = amqp.DialTLS(c.config.Connection.AmqpURI, c.config.Connection.TLSConfig)
+		connection, err = amqp.DialConfig(c.config.AmqpURI, *c.config.AmqpConfig)
+	} else if c.config.TLSConfig != nil {
+		connection, err = amqp.DialTLS(c.config.AmqpURI, c.config.TLSConfig)
 	} else {
-		connection, err = amqp.Dial(c.config.Connection.AmqpURI)
+		connection, err = amqp.Dial(c.config.AmqpURI)
 	}
 
 	if err != nil {
@@ -99,15 +101,15 @@ func (c *connectionWrapper) connect() error {
 	return nil
 }
 
-func (c *connectionWrapper) Connection() *amqp.Connection {
+func (c *ConnectionWrapper) Connection() *amqp.Connection {
 	return c.amqpConnection
 }
 
-func (c *connectionWrapper) Connected() chan struct{} {
+func (c *ConnectionWrapper) Connected() chan struct{} {
 	return c.connected
 }
 
-func (c *connectionWrapper) IsConnected() bool {
+func (c *ConnectionWrapper) IsConnected() bool {
 	select {
 	case <-c.connected:
 		return true
@@ -116,7 +118,11 @@ func (c *connectionWrapper) IsConnected() bool {
 	}
 }
 
-func (c *connectionWrapper) handleConnectionClose() {
+func (c *ConnectionWrapper) Closed() bool {
+	return atomic.LoadUint32(&c.closed) == 1
+}
+
+func (c *ConnectionWrapper) handleConnectionClose() {
 	for {
 		c.logger.Debug("handleConnectionClose is waiting for c.connected", nil)
 		<-c.connected
@@ -137,8 +143,8 @@ func (c *connectionWrapper) handleConnectionClose() {
 	}
 }
 
-func (c *connectionWrapper) reconnect() {
-	reconnectConfig := c.config.Connection.Reconnect
+func (c *ConnectionWrapper) reconnect() {
+	reconnectConfig := c.config.Reconnect
 	if reconnectConfig == nil {
 		reconnectConfig = DefaultReconnectConfig()
 	}
@@ -151,7 +157,7 @@ func (c *connectionWrapper) reconnect() {
 
 		c.logger.Error("Cannot reconnect to AMQP, retrying", err, nil)
 
-		if c.closed {
+		if c.Closed() {
 			return backoff.Permanent(errors.Wrap(err, "closing AMQP connection"))
 		}
 

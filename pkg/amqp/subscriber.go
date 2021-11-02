@@ -2,6 +2,8 @@ package amqp
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -12,9 +14,12 @@ import (
 )
 
 type Subscriber struct {
-	*connectionWrapper
+	*ConnectionWrapper
 
-	config Config
+	config              Config
+	closedChan          chan struct{}
+	closeSubscriber     func() error
+	subscriberWaitGroup *sync.WaitGroup
 }
 
 func NewSubscriber(config Config, logger watermill.LoggerAdapter) (*Subscriber, error) {
@@ -22,12 +27,75 @@ func NewSubscriber(config Config, logger watermill.LoggerAdapter) (*Subscriber, 
 		return nil, err
 	}
 
-	conn, err := newConnection(config, logger)
+	conn, err := NewConnection(config.Connection, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Subscriber{conn, config}, nil
+	var closed uint32
+	closedChan := make(chan struct{})
+	var subscriberWaitGroup sync.WaitGroup
+
+	// Close the subscriber AND the connection when the subscriber is closed,
+	// since this subscriber owns the connection.
+	closeSubscriber := func() error {
+		if !atomic.CompareAndSwapUint32(&closed, 0, 1) {
+			// Already closed.
+			return nil
+		}
+
+		logger.Debug("Closing subscriber.", nil)
+
+		close(closedChan)
+
+		subscriberWaitGroup.Wait()
+
+		logger.Debug("Closing connection.", nil)
+
+		return conn.Close()
+	}
+
+	return &Subscriber{
+		conn,
+		config,
+		closedChan,
+		closeSubscriber,
+		&subscriberWaitGroup,
+	}, nil
+}
+
+func NewSubscriberWithConnection(config Config, logger watermill.LoggerAdapter, conn *ConnectionWrapper) (*Subscriber, error) {
+	if err := config.ValidateSubscriber(); err != nil {
+		return nil, err
+	}
+
+	var closed uint32
+	closedChan := make(chan struct{})
+	var subscriberWaitGroup sync.WaitGroup
+
+	// Shared connections should not be closed by the subscriber. Just close the subscriber.
+	closeSubscriber := func() error {
+		if !atomic.CompareAndSwapUint32(&closed, 0, 1) {
+			// Already closed.
+			return nil
+		}
+
+		logger.Debug("Closing subscriber.", nil)
+
+		close(closedChan)
+
+		subscriberWaitGroup.Wait()
+
+		return nil
+	}
+
+	return &Subscriber{
+		conn,
+		config,
+		closedChan,
+		closeSubscriber,
+		&subscriberWaitGroup,
+	}, nil
 }
 
 // Subscribe consumes messages from AMQP broker.
@@ -36,8 +104,8 @@ func NewSubscriber(config Config, logger watermill.LoggerAdapter) (*Subscriber, 
 // to exchange, queue or routing key.
 // For detailed description of nomenclature mapping, please check "Nomenclature" paragraph in doc.go file.
 func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
-	if s.closed {
-		return nil, errors.New("pub/sub is closed")
+	if s.Closed() {
+		return nil, errors.New("pub/sub is closedChan")
 	}
 
 	if !s.IsConnected() {
@@ -58,12 +126,15 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 		return nil, errors.Wrap(err, "failed to prepare consume")
 	}
 
-	s.subscribingWg.Add(1)
+	s.subscriberWaitGroup.Add(1)
+	s.connectionWaitGroup.Add(1)
+
 	go func(ctx context.Context) {
 		defer func() {
 			close(out)
 			s.logger.Info("Stopped consuming from AMQP channel", logFields)
-			s.subscribingWg.Done()
+			s.connectionWaitGroup.Done()
+			s.subscriberWaitGroup.Done()
 		}()
 
 	ReconnectLoop:
@@ -74,6 +145,9 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			select {
 			case <-s.closing:
 				s.logger.Debug("Stopping ReconnectLoop (already closing)", logFields)
+				break ReconnectLoop
+			case <-s.closedChan:
+				s.logger.Debug("Stopping ReconnectLoop (subscriber closing)", logFields)
 				break ReconnectLoop
 			default:
 				// not closing yet
@@ -100,7 +174,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 }
 
 func (s *Subscriber) SubscribeInitialize(topic string) (err error) {
-	if s.closed {
+	if s.Closed() {
 		return errors.New("pub/sub is closed")
 	}
 
@@ -119,6 +193,11 @@ func (s *Subscriber) SubscribeInitialize(topic string) (err error) {
 	s.logger.Info("Initializing subscribe", logFields)
 
 	return errors.Wrap(s.prepareConsume(queueName, exchangeName, logFields), "failed to prepare consume")
+}
+
+// Close closes all subscriptions with their output channels.
+func (s *Subscriber) Close() error {
+	return s.closeSubscriber()
 }
 
 func (s *Subscriber) prepareConsume(queueName string, exchangeName string, logFields watermill.LogFields) (err error) {
@@ -169,6 +248,7 @@ func (s *Subscriber) runSubscriber(
 		queueName:          queueName,
 		logger:             s.logger,
 		closing:            s.closing,
+		closedChan:         s.closedChan,
 		config:             s.config,
 	}
 
@@ -209,9 +289,10 @@ type subscription struct {
 	channel            *amqp.Channel
 	queueName          string
 
-	logger  watermill.LoggerAdapter
-	closing chan struct{}
-	config  Config
+	logger     watermill.LoggerAdapter
+	closing    chan struct{}
+	closedChan chan struct{}
+	config     Config
 }
 
 func (s *subscription) ProcessMessages(ctx context.Context) {
@@ -243,6 +324,10 @@ ConsumingLoop:
 
 		case <-s.closing:
 			s.logger.Info("Closing from Subscriber received", s.logFields)
+			break ConsumingLoop
+
+		case <-s.closedChan:
+			s.logger.Info("Subscriber closed", s.logFields)
 			break ConsumingLoop
 
 		case <-ctx.Done():
@@ -291,6 +376,9 @@ func (s *subscription) processMessage(
 	case <-s.closing:
 		s.logger.Info("Message not consumed, pub/sub is closing", msgLogFields)
 		return s.nackMsg(amqpMsg)
+	case <-s.closedChan:
+		s.logger.Info("Message not consumed, subscriber is closed", msgLogFields)
+		return s.nackMsg(amqpMsg)
 	case out <- msg:
 		s.logger.Trace("Message sent to consumer", msgLogFields)
 	}
@@ -298,6 +386,9 @@ func (s *subscription) processMessage(
 	select {
 	case <-s.closing:
 		s.logger.Trace("Closing pub/sub, message discarded before ack", msgLogFields)
+		return s.nackMsg(amqpMsg)
+	case <-s.closedChan:
+		s.logger.Info("Message not consumed, subscriber is closed", msgLogFields)
 		return s.nackMsg(amqpMsg)
 	case <-msg.Acked():
 		s.logger.Trace("Message Acked", msgLogFields)

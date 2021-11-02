@@ -1,8 +1,10 @@
 package amqp_test
 
 import (
+	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -122,6 +124,18 @@ func createQueuePubSub(t *testing.T) (message.Publisher, message.Subscriber) {
 	return publisher, subscriber
 }
 
+func createQueuePubSubWithSharedConnection(t *testing.T, config amqp.Config, conn *amqp.ConnectionWrapper, logger watermill.LoggerAdapter) (message.Publisher, message.Subscriber) {
+	t.Logf("Creating publisher/subscriber with shared connection")
+
+	publisher, err := amqp.NewPublisherWithConnection(config, logger, conn)
+	require.NoError(t, err)
+
+	subscriber, err := amqp.NewSubscriberWithConnection(config, logger, conn)
+	require.NoError(t, err)
+
+	return publisher, subscriber
+}
+
 func TestPublishSubscribe_queue(t *testing.T) {
 	tests.TestPubSub(
 		t,
@@ -152,6 +166,74 @@ func TestPublishSubscribe_transactional_publish(t *testing.T) {
 		},
 		createTransactionalPubSub,
 	)
+}
+
+func TestPublishSubscribe_queue_with_shared_connection(t *testing.T) {
+	config := amqp.NewDurableQueueConfig(
+		amqpURI(),
+	)
+
+	logger := watermill.NewStdLogger(true, true)
+
+	conn, err := amqp.NewConnection(config.Connection, logger)
+	require.NoError(t, err)
+
+	tests.TestPubSub(
+		t,
+		tests.Features{
+			ConsumerGroups:                      false,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+		},
+		func(t *testing.T) (message.Publisher, message.Subscriber) {
+			return createQueuePubSubWithSharedConnection(t, config, conn, logger)
+		},
+		nil,
+	)
+}
+
+func TestSharedConnection(t *testing.T) {
+	const topic = "topicXXX"
+
+	config := amqp.NewDurableQueueConfig(
+		amqpURI(),
+	)
+
+	logger := watermill.NewStdLogger(true, true)
+
+	conn, err := amqp.NewConnection(config.Connection, logger)
+	require.NoError(t, err)
+
+	s, err := amqp.NewSubscriberWithConnection(config, logger, conn)
+	require.NoError(t, err)
+
+	msgChan, err := s.Subscribe(context.Background(), topic)
+	require.NoError(t, err)
+
+	p, err := amqp.NewPublisherWithConnection(config, logger, conn)
+	require.NoError(t, err)
+
+	require.NoError(t, p.Publish(topic, message.NewMessage(watermill.NewUUID(), []byte("payload"))))
+
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("Timed out waiting for message")
+	case msg := <-msgChan:
+		msg.Ack()
+	}
+
+	require.NoError(t, conn.Close())
+
+	// After closing the connection, the subscriber message channel should also be closed.
+
+	select {
+	case _, open := <-msgChan:
+		require.False(t, open)
+	default:
+		t.Error("messages channel is not closed")
+	}
 }
 
 //func TestClose(t *testing.T) {

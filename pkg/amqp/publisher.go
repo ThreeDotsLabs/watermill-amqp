@@ -1,6 +1,7 @@
 package amqp
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -11,11 +12,12 @@ import (
 )
 
 type Publisher struct {
-	*connectionWrapper
+	*ConnectionWrapper
 
 	config                  Config
 	publishBindingsLock     sync.RWMutex
 	publishBindingsPrepared map[string]struct{}
+	closePublisher          func() error
 }
 
 func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, error) {
@@ -23,9 +25,18 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 		return nil, err
 	}
 
-	conn, err := newConnection(config, logger)
+	var err error
+
+	conn, err := NewConnection(config.Connection, logger)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create new connection: %w", err)
+	}
+
+	// Close the connection when the publisher is closed since this publisher owns the connection.
+	closePublisher := func() error {
+		logger.Debug("Closing publisher connection.", nil)
+
+		return conn.Close()
 	}
 
 	return &Publisher{
@@ -33,6 +44,28 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 		config,
 		sync.RWMutex{},
 		make(map[string]struct{}),
+		closePublisher,
+	}, nil
+}
+
+func NewPublisherWithConnection(config Config, logger watermill.LoggerAdapter, conn *ConnectionWrapper) (*Publisher, error) {
+	if err := config.ValidatePublisher(); err != nil {
+		return nil, err
+	}
+
+	// Shared connections should not be closed by the publisher.
+	closePublisher := func() error {
+		logger.Debug("Publisher closed.", nil)
+
+		return nil
+	}
+
+	return &Publisher{
+		conn,
+		config,
+		sync.RWMutex{},
+		make(map[string]struct{}),
+		closePublisher,
 	}, nil
 }
 
@@ -44,15 +77,16 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 // to exchange, queue or routing key.
 // For detailed description of nomenclature mapping, please check "Nomenclature" paragraph in doc.go file.
 func (p *Publisher) Publish(topic string, messages ...*message.Message) (err error) {
-	if p.closed {
-		return errors.New("pub/sub is connection closed")
+	if p.Closed() {
+		return errors.New("pub/sub is connection closedChan")
 	}
-	p.publishingWg.Add(1)
-	defer p.publishingWg.Done()
 
 	if !p.IsConnected() {
 		return errors.New("not connected to AMQP")
 	}
+
+	p.connectionWaitGroup.Add(1)
+	defer p.connectionWaitGroup.Done()
 
 	channel, err := p.amqpConnection.Channel()
 	if err != nil {
@@ -93,6 +127,10 @@ func (p *Publisher) Publish(topic string, messages ...*message.Message) (err err
 	}
 
 	return nil
+}
+
+func (p *Publisher) Close() error {
+	return p.closePublisher()
 }
 
 func (p *Publisher) beginTransaction(channel *amqp.Channel) error {
