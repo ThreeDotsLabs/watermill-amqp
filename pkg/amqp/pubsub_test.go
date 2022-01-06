@@ -24,11 +24,28 @@ func amqpURI() string {
 }
 
 func createPubSub(t *testing.T) (message.Publisher, message.Subscriber) {
+	publisherCfg := amqp.NewDurablePubSubConfig(
+		amqpURI(),
+		nil,
+	)
+
+	return createPubSubWithConfig(t, publisherCfg)
+}
+
+func createPubSubWithPublisherChannelPool(t *testing.T) (message.Publisher, message.Subscriber) {
+	publisherCfg := amqp.NewDurablePubSubConfig(
+		amqpURI(),
+		nil,
+	)
+
+	publisherCfg.Publish.ChannelPoolSize = 50
+
+	return createPubSubWithConfig(t, publisherCfg)
+}
+
+func createPubSubWithConfig(t *testing.T, publisherCfg amqp.Config) (message.Publisher, message.Subscriber) {
 	publisher, err := amqp.NewPublisher(
-		amqp.NewDurablePubSubConfig(
-			amqpURI(),
-			nil,
-		),
+		publisherCfg,
 		watermill.NewStdLogger(true, true),
 	)
 	require.NoError(t, err)
@@ -104,10 +121,27 @@ func TestPublishSubscribe_pubsub(t *testing.T) {
 	)
 }
 
+func TestPublishSubscribe_pubsub_with_channel_pool(t *testing.T) {
+	tests.TestPubSub(
+		t,
+		tests.Features{
+			ConsumerGroups:                      true,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+		},
+		createPubSubWithPublisherChannelPool,
+		createPubSubWithConsumerGroup,
+	)
+}
+
 func createQueuePubSub(t *testing.T) (message.Publisher, message.Subscriber) {
 	config := amqp.NewDurableQueueConfig(
 		amqpURI(),
 	)
+
+	config.Publish.ChannelPoolSize = 25
 
 	publisher, err := amqp.NewPublisher(
 		config,
