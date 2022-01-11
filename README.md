@@ -2,7 +2,7 @@
 <img align="right" width="200" src="https://threedots.tech/watermill-io/watermill-logo.png">
 
 [![CircleCI](https://circleci.com/gh/ThreeDotsLabs/watermill-amqp/tree/master.svg?style=svg)](https://circleci.com/gh/ThreeDotsLabs/watermill-amqp/tree/master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ThreeDotsLabs/watermill-amqp/v2)](https://goreportcard.com/report/github.com/ThreeDotsLabs/watermill-amqp/v2)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ThreeDotsLabs/watermill-amqp)](https://goreportcard.com/report/github.com/ThreeDotsLabs/watermill-amqp)
 
 This is Pub/Sub for the [Watermill](https://watermill.io/) project.
 
