@@ -6,7 +6,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/message"
-	stdAmqp "github.com/streadway/amqp"
+	stdAmqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

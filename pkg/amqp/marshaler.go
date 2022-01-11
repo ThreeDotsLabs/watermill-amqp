@@ -3,7 +3,7 @@ package amqp
 import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/pkg/errors"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const DefaultMessageUUIDHeaderKey = "_watermill_message_uuid"

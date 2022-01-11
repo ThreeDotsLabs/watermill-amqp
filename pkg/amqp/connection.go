@@ -7,7 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/cenkalti/backoff/v3"
 	"github.com/pkg/errors"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // ConnectionWrapper manages an AMQP connection.

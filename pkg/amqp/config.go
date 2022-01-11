@@ -5,7 +5,7 @@ import (
 	"time"
 
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/cenkalti/backoff/v3"
 

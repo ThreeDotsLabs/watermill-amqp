@@ -8,7 +8,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Publisher struct {
