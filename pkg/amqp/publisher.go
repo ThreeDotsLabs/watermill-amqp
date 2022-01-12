@@ -18,6 +18,7 @@ type Publisher struct {
 	publishBindingsLock     sync.RWMutex
 	publishBindingsPrepared map[string]struct{}
 	closePublisher          func() error
+	chanProvider            channelProvider
 }
 
 func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, error) {
@@ -32,9 +33,16 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 		return nil, fmt.Errorf("create new connection: %w", err)
 	}
 
+	chanProvider, err := newChannelProvider(conn, config.Publish.ChannelPoolSize, logger)
+	if err != nil {
+		return nil, fmt.Errorf("create new channel pool: %w", err)
+	}
+
 	// Close the connection when the publisher is closed since this publisher owns the connection.
 	closePublisher := func() error {
 		logger.Debug("Closing publisher connection.", nil)
+
+		chanProvider.Close()
 
 		return conn.Close()
 	}
@@ -45,6 +53,7 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 		sync.RWMutex{},
 		make(map[string]struct{}),
 		closePublisher,
+		chanProvider,
 	}, nil
 }
 
@@ -53,9 +62,16 @@ func NewPublisherWithConnection(config Config, logger watermill.LoggerAdapter, c
 		return nil, err
 	}
 
+	chanProvider, err := newChannelProvider(conn, config.Publish.ChannelPoolSize, logger)
+	if err != nil {
+		return nil, fmt.Errorf("create new channel pool: %w", err)
+	}
+
 	// Shared connections should not be closed by the publisher.
 	closePublisher := func() error {
 		logger.Debug("Publisher closed.", nil)
+
+		chanProvider.Close()
 
 		return nil
 	}
@@ -66,6 +82,7 @@ func NewPublisherWithConnection(config Config, logger watermill.LoggerAdapter, c
 		sync.RWMutex{},
 		make(map[string]struct{}),
 		closePublisher,
+		chanProvider,
 	}, nil
 }
 
@@ -88,15 +105,17 @@ func (p *Publisher) Publish(topic string, messages ...*message.Message) (err err
 	p.connectionWaitGroup.Add(1)
 	defer p.connectionWaitGroup.Done()
 
-	channel, err := p.amqpConnection.Channel()
+	c, err := p.chanProvider.Channel()
 	if err != nil {
 		return errors.Wrap(err, "cannot open channel")
 	}
 	defer func() {
-		if channelCloseErr := channel.Close(); channelCloseErr != nil {
+		if channelCloseErr := p.chanProvider.CloseChannel(c); channelCloseErr != nil {
 			err = multierror.Append(err, channelCloseErr)
 		}
 	}()
+
+	channel := c.AMQPChannel()
 
 	if p.config.Publish.Transactional {
 		if err := p.beginTransaction(channel); err != nil {

@@ -399,6 +399,14 @@ type PublishConfig struct {
 
 	// With transactional enabled, all messages wil be added in transaction.
 	Transactional bool
+
+	// ChannelPoolSize specifies the size of a channel pool. All channels in the pool are opened when the publisher is
+	// created. When a Publish operation is performed then a channel is taken from the pool to perform the operation and
+	// then returned to the pool once the operation has finished. If all channels are in use then the Publish operation
+	// waits until a channel is returned to the pool.
+	// If this value is set to 0 (default) then channels are not pooled and a new channel is opened/closed for every
+	// Publish operation.
+	ChannelPoolSize int
 }
 
 type ConsumeConfig struct {
