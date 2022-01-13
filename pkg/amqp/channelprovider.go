@@ -6,7 +6,7 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/pkg/errors"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type channel interface {
