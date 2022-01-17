@@ -15,8 +15,9 @@ import (
 // 	config.TopologyBuilder = MyProCustomBuilder{}
 //
 type TopologyBuilder interface {
-	BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, config Config, logger watermill.LoggerAdapter) error
+	BuildTopology(channel *amqp.Channel, queue *amqp.Queue, exchangeName string, config Config, logger watermill.LoggerAdapter) error
 	ExchangeDeclare(channel *amqp.Channel, exchangeName string, config Config) error
+	QueueDeclare(channel *amqp.Channel, queueName string, config Config, logger watermill.LoggerAdapter) (amqp.Queue, error)
 }
 
 type DefaultTopologyBuilder struct{}
@@ -33,20 +34,18 @@ func (builder DefaultTopologyBuilder) ExchangeDeclare(channel *amqp.Channel, exc
 	)
 }
 
-func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, config Config, logger watermill.LoggerAdapter) error {
-	if _, err := channel.QueueDeclare(
+func (builder *DefaultTopologyBuilder) QueueDeclare(channel *amqp.Channel, queueName string, config Config, logger watermill.LoggerAdapter) (amqp.Queue, error) {
+	return channel.QueueDeclare(
 		queueName,
 		config.Queue.Durable,
 		config.Queue.AutoDelete,
 		config.Queue.Exclusive,
 		config.Queue.NoWait,
 		config.Queue.Arguments,
-	); err != nil {
-		return errors.Wrap(err, "cannot declare queue")
-	}
+	)
+}
 
-	logger.Debug("Queue declared", nil)
-
+func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queue *amqp.Queue, exchangeName string, config Config, logger watermill.LoggerAdapter) error {
 	if exchangeName == "" {
 		logger.Debug("No exchange to declare", nil)
 		return nil
@@ -58,8 +57,8 @@ func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queu
 	logger.Debug("Exchange declared", nil)
 
 	if err := channel.QueueBind(
-		queueName,
-		config.QueueBind.GenerateRoutingKey(queueName),
+		queue.Name,
+		config.QueueBind.GenerateRoutingKey(queue.Name),
 		exchangeName,
 		config.QueueBind.NoWait,
 		config.QueueBind.Arguments,

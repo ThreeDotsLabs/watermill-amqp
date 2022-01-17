@@ -2,6 +2,7 @@ package amqp
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -116,15 +117,16 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 
 	out := make(chan *message.Message)
 
-	queueName := s.config.Queue.GenerateName(topic)
-	logFields["amqp_queue_name"] = queueName
-
 	exchangeName := s.config.Exchange.GenerateName(topic)
 	logFields["amqp_exchange_name"] = exchangeName
 
-	if err := s.prepareConsume(queueName, exchangeName, logFields); err != nil {
+	queueName := s.config.Queue.GenerateName(topic)
+	queue, err := s.prepareConsume(queueName, exchangeName, logFields)
+	if err != nil {
 		return nil, errors.Wrap(err, "failed to prepare consume")
 	}
+	queueName = queue.Name
+	logFields["amqp_queue_name"] = queueName
 
 	s.subscriberWaitGroup.Add(1)
 	s.connectionWaitGroup.Add(1)
@@ -184,15 +186,15 @@ func (s *Subscriber) SubscribeInitialize(topic string) (err error) {
 
 	logFields := watermill.LogFields{"topic": topic}
 
-	queueName := s.config.Queue.GenerateName(topic)
-	logFields["amqp_queue_name"] = queueName
-
 	exchangeName := s.config.Exchange.GenerateName(topic)
 	logFields["amqp_exchange_name"] = exchangeName
 
+	queueName := s.config.Queue.GenerateName(topic)
+	_, err = s.prepareConsume(queueName, exchangeName, logFields)
+
 	s.logger.Info("Initializing subscribe", logFields)
 
-	return errors.Wrap(s.prepareConsume(queueName, exchangeName, logFields), "failed to prepare consume")
+	return errors.Wrap(err, "failed to prepare consume")
 }
 
 // Close closes all subscriptions with their output channels.
@@ -200,10 +202,11 @@ func (s *Subscriber) Close() error {
 	return s.closeSubscriber()
 }
 
-func (s *Subscriber) prepareConsume(queueName string, exchangeName string, logFields watermill.LogFields) (err error) {
+func (s *Subscriber) prepareConsume(queueName string, exchangeName string, logFields watermill.LogFields) (*amqp.Queue, error) {
+	var err error
 	channel, err := s.openSubscribeChannel(logFields)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		if channelCloseErr := channel.Close(); channelCloseErr != nil {
@@ -211,13 +214,22 @@ func (s *Subscriber) prepareConsume(queueName string, exchangeName string, logFi
 		}
 	}()
 
-	if err = s.config.TopologyBuilder.BuildTopology(channel, queueName, exchangeName, s.config, s.logger); err != nil {
-		return err
+	queue, err := s.config.TopologyBuilder.QueueDeclare(channel, queueName, s.config, s.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	logFields["amqp_queue_name"] = queue.Name
+
+	s.logger.Debug(fmt.Sprintf("Queue declared: %q", queue.Name), logFields)
+
+	if err = s.config.TopologyBuilder.BuildTopology(channel, &queue, exchangeName, s.config, s.logger); err != nil {
+		return nil, err
 	}
 
 	s.logger.Debug("Queue bound to exchange", logFields)
 
-	return nil
+	return &queue, nil
 }
 
 func (s *Subscriber) runSubscriber(
