@@ -11,33 +11,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultMarshaler(t *testing.T) {
-	marshaler := amqp.DefaultMarshaler{}
+func TestCorrelatingMarshaler(t *testing.T) {
+	marshaler := amqp.CorrelatingMarshaler{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
 
 	marshaled, err := marshaler.Marshal(msg)
 	require.NoError(t, err)
-
-	_, headerExists := marshaled.Headers[amqp.DefaultMessageUUIDHeaderKey]
-	assert.True(t, headerExists, "header %s doesn't exist", amqp.DefaultMessageUUIDHeaderKey)
+	assert.Equal(t, marshaled.CorrelationId, msg.UUID)
+	assert.Equal(t, marshaled.DeliveryMode, stdAmqp.Persistent)
 
 	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
 	require.NoError(t, err)
 
 	assert.True(t, msg.Equals(unmarshaledMsg))
-	assert.Equal(t, marshaled.DeliveryMode, stdAmqp.Persistent)
 }
 
-func TestDefaultMarshaler_without_message_uuid(t *testing.T) {
-	marshaler := amqp.DefaultMarshaler{}
+func TestCorrelatingMarshaler_without_correlation_id(t *testing.T) {
+	marshaler := amqp.CorrelatingMarshaler{}
 
-	msg := message.NewMessage(watermill.NewUUID(), nil)
+	msg := message.NewMessage("", nil)
 	marshaled, err := marshaler.Marshal(msg)
 	require.NoError(t, err)
-
-	delete(marshaled.Headers, amqp.DefaultMessageUUIDHeaderKey)
+	assert.Empty(t, marshaled.CorrelationId)
 
 	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
 	require.NoError(t, err)
@@ -45,25 +42,8 @@ func TestDefaultMarshaler_without_message_uuid(t *testing.T) {
 	assert.Empty(t, unmarshaledMsg.UUID)
 }
 
-func TestDefaultMarshaler_configured_message_uuid_header(t *testing.T) {
-	headerKey := "custom_msg_uuid"
-	marshaler := amqp.DefaultMarshaler{MessageUUIDHeaderKey: headerKey}
-
-	msg := message.NewMessage(watermill.NewUUID(), nil)
-	marshaled, err := marshaler.Marshal(msg)
-	require.NoError(t, err)
-
-	_, headerExists := marshaled.Headers[headerKey]
-	assert.True(t, headerExists, "header %s doesn't exist", headerKey)
-
-	unmarshaledMsg, err := marshaler.Unmarshal(publishingToDelivery(marshaled))
-	require.NoError(t, err)
-
-	assert.Equal(t, msg.UUID, unmarshaledMsg.UUID)
-}
-
-func TestDefaultMarshaler_not_persistent(t *testing.T) {
-	marshaler := amqp.DefaultMarshaler{NotPersistentDeliveryMode: true}
+func TestCorrelatingMarshaler_not_persistent(t *testing.T) {
+	marshaler := amqp.CorrelatingMarshaler{NotPersistentDeliveryMode: true}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -74,10 +54,9 @@ func TestDefaultMarshaler_not_persistent(t *testing.T) {
 	assert.EqualValues(t, marshaled.DeliveryMode, 0)
 }
 
-func TestDefaultMarshaler_postprocess_publishing(t *testing.T) {
-	marshaler := amqp.DefaultMarshaler{
+func TestCorrelatingMarshaler_postprocess_publishing(t *testing.T) {
+	marshaler := amqp.CorrelatingMarshaler{
 		PostprocessPublishing: func(publishing stdAmqp.Publishing) stdAmqp.Publishing {
-			publishing.CorrelationId = "correlation"
 			publishing.ContentType = "application/json"
 
 			return publishing
@@ -90,12 +69,11 @@ func TestDefaultMarshaler_postprocess_publishing(t *testing.T) {
 	marshaled, err := marshaler.Marshal(msg)
 	require.NoError(t, err)
 
-	assert.Equal(t, marshaled.CorrelationId, "correlation")
 	assert.Equal(t, marshaled.ContentType, "application/json")
 }
 
-func BenchmarkDefaultMarshaler_Marshal(b *testing.B) {
-	m := amqp.DefaultMarshaler{}
+func BenchmarkCorrelatingMarshaler_Marshal(b *testing.B) {
+	m := amqp.CorrelatingMarshaler{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -111,8 +89,8 @@ func BenchmarkDefaultMarshaler_Marshal(b *testing.B) {
 	assert.NoError(b, err)
 }
 
-func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
-	m := amqp.DefaultMarshaler{}
+func BenchmarkCorrelatingMarshaler_Unmarshal(b *testing.B) {
+	m := amqp.CorrelatingMarshaler{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -131,12 +109,4 @@ func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
 	b.StopTimer()
 
 	assert.NoError(b, err)
-}
-
-func publishingToDelivery(marshaled stdAmqp.Publishing) stdAmqp.Delivery {
-	return stdAmqp.Delivery{
-		Body:          marshaled.Body,
-		Headers:       marshaled.Headers,
-		CorrelationId: marshaled.CorrelationId,
-	}
 }
