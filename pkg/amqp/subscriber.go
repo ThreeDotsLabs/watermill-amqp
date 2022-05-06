@@ -238,7 +238,7 @@ func (s *Subscriber) runSubscriber(
 		}
 	}()
 
-	notifyCloseChannel := channel.NotifyClose(make(chan *amqp.Error))
+	notifyCloseChannel := channel.NotifyClose(make(chan *amqp.Error, 1))
 
 	sub := subscription{
 		out:                out,
