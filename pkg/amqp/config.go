@@ -407,6 +407,11 @@ type PublishConfig struct {
 	// If this value is set to 0 (default) then channels are not pooled and a new channel is opened/closed for every
 	// Publish operation.
 	ChannelPoolSize int
+
+	// ConfirmDelivery indicates whether the Publish function should wait until a confirmation is received from
+	// the AMQP server in order to guarantee that the message is delivered. Setting this value to true may
+	// negatively impact performance but will increase reliability.
+	ConfirmDelivery bool
 }
 
 type ConsumeConfig struct {

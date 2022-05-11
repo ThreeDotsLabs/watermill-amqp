@@ -33,7 +33,7 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 		return nil, fmt.Errorf("create new connection: %w", err)
 	}
 
-	chanProvider, err := newChannelProvider(conn, config.Publish.ChannelPoolSize, logger)
+	chanProvider, err := newChannelProvider(conn, config.Publish.ChannelPoolSize, config.Publish.ConfirmDelivery, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create new channel pool: %w", err)
 	}
@@ -62,7 +62,7 @@ func NewPublisherWithConnection(config Config, logger watermill.LoggerAdapter, c
 		return nil, err
 	}
 
-	chanProvider, err := newChannelProvider(conn, config.Publish.ChannelPoolSize, logger)
+	chanProvider, err := newChannelProvider(conn, config.Publish.ChannelPoolSize, config.Publish.ConfirmDelivery, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create new channel pool: %w", err)
 	}
@@ -140,7 +140,7 @@ func (p *Publisher) Publish(topic string, messages ...*message.Message) (err err
 	logFields["amqp_routing_key"] = routingKey
 
 	for _, msg := range messages {
-		if err := p.publishMessage(exchangeName, routingKey, msg, channel, logFields); err != nil {
+		if err := p.publishMessage(exchangeName, routingKey, msg, c, logFields); err != nil {
 			return err
 		}
 	}
@@ -175,7 +175,7 @@ func (p *Publisher) commitTransaction(channel *amqp.Channel, err error) error {
 func (p *Publisher) publishMessage(
 	exchangeName, routingKey string,
 	msg *message.Message,
-	channel *amqp.Channel,
+	channel channel,
 	logFields watermill.LogFields,
 ) error {
 	logFields = logFields.Add(watermill.LogFields{"message_uuid": msg.UUID})
@@ -187,7 +187,7 @@ func (p *Publisher) publishMessage(
 		return errors.Wrap(err, "cannot marshal message")
 	}
 
-	if err = channel.Publish(
+	if err = channel.AMQPChannel().Publish(
 		exchangeName,
 		routingKey,
 		p.config.Publish.Mandatory,
@@ -197,7 +197,19 @@ func (p *Publisher) publishMessage(
 		return errors.Wrap(err, "cannot publish msg")
 	}
 
-	p.logger.Trace("Message published", logFields)
+	if !channel.DeliveryConfirmationEnabled() {
+		p.logger.Trace("Message published", logFields)
+
+		return nil
+	}
+
+	p.logger.Trace("Message published. Waiting for delivery confirmation.", logFields)
+
+	if !channel.Delivered() {
+		return fmt.Errorf("delivery not confirmed for message [%s]", msg.UUID)
+	}
+
+	p.logger.Trace("Delivery confirmed for message", logFields)
 
 	return nil
 }

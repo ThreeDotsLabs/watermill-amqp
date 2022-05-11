@@ -10,7 +10,14 @@ import (
 )
 
 type channel interface {
+	// AMQPChannel returns the underlying AMQP channel.
 	AMQPChannel() *amqp.Channel
+	// DeliveryConfirmationEnabled returns true if delivery confirmation of published messages is enabled.
+	DeliveryConfirmationEnabled() bool
+	// Delivered waits until confirmation of delivery has been received from the AMQP server and returns true if delivery
+	// was successful, otherwise false is returned. If delivery confirmation is not enabled then true is immediately returned.
+	Delivered() bool
+	// Close closes the channel.
 	Close() error
 }
 
@@ -20,26 +27,31 @@ type channelProvider interface {
 	Close()
 }
 
-func newChannelProvider(conn *ConnectionWrapper, poolSize int, logger watermill.LoggerAdapter) (channelProvider, error) {
+func newChannelProvider(conn *ConnectionWrapper, poolSize int, confirmDelivery bool,
+	logger watermill.LoggerAdapter) (channelProvider, error) {
 	if poolSize == 0 {
-		return &defaultChannelProvider{conn}, nil
+		return newDefaultChannelProvider(conn, confirmDelivery), nil
 	}
 
-	return newPooledChannelProvider(conn, poolSize, logger)
+	return newPooledChannelProvider(conn, poolSize, confirmDelivery, logger)
 }
 
 type pooledChannel struct {
-	logger     watermill.LoggerAdapter
-	conn       *ConnectionWrapper
-	amqpChan   *amqp.Channel
-	closedChan chan *amqp.Error
+	logger          watermill.LoggerAdapter
+	conn            *ConnectionWrapper
+	amqpChan        *amqp.Channel
+	closedChan      chan *amqp.Error
+	confirmDelivery bool
+	confirmChan     chan amqp.Confirmation
 }
 
-func newPooledChannel(conn *ConnectionWrapper, logger watermill.LoggerAdapter) (*pooledChannel, error) {
+func newPooledChannel(conn *ConnectionWrapper, logger watermill.LoggerAdapter, confirmDelivery bool) (*pooledChannel, error) {
 	c := &pooledChannel{
 		logger,
 		conn,
 		nil,
+		nil,
+		confirmDelivery,
 		nil,
 	}
 
@@ -54,6 +66,22 @@ func (c *pooledChannel) AMQPChannel() *amqp.Channel {
 	return c.amqpChan
 }
 
+func (c *pooledChannel) Delivered() bool {
+	if c.confirmChan == nil {
+		// Delivery confirmation is not enabled. Simply return true.
+		return true
+	}
+
+	confirmed := <-c.confirmChan
+
+	return confirmed.Ack
+}
+
+// DeliveryConfirmationEnabled returns true if delivery confirmation of published messages is enabled.
+func (c *pooledChannel) DeliveryConfirmationEnabled() bool {
+	return c.confirmChan != nil
+}
+
 func (c *pooledChannel) openAMQPChannel() error {
 	var err error
 
@@ -65,6 +93,15 @@ func (c *pooledChannel) openAMQPChannel() error {
 	c.closedChan = make(chan *amqp.Error, 1)
 
 	c.amqpChan.NotifyClose(c.closedChan)
+
+	if c.confirmDelivery {
+		err = c.amqpChan.Confirm(false)
+		if err != nil {
+			return fmt.Errorf("confirm AMQP channel: %w", err)
+		}
+
+		c.confirmChan = c.amqpChan.NotifyPublish(make(chan amqp.Confirmation, 1))
+	}
 
 	return nil
 }
@@ -86,16 +123,37 @@ func (c *pooledChannel) Close() error {
 
 type channelWrapper struct {
 	*amqp.Channel
+	confirmChan chan amqp.Confirmation
 }
 
 func (c *channelWrapper) AMQPChannel() *amqp.Channel {
 	return c.Channel
 }
 
+func (c *channelWrapper) DeliveryConfirmationEnabled() bool {
+	return c.confirmChan != nil
+}
+
+func (c *channelWrapper) Delivered() bool {
+	if c.confirmChan == nil {
+		// Delivery confirmation is not enabled. Simply return true.
+		return true
+	}
+
+	confirmed := <-c.confirmChan
+
+	return confirmed.Ack
+}
+
 // defaultChannelProvider simply opens a new channel when Channel() is called and closes the channel
 // when CloseChannel is called.
 type defaultChannelProvider struct {
-	conn *ConnectionWrapper
+	conn            *ConnectionWrapper
+	confirmDelivery bool
+}
+
+func newDefaultChannelProvider(conn *ConnectionWrapper, confirmDelivery bool) *defaultChannelProvider {
+	return &defaultChannelProvider{conn, confirmDelivery}
 }
 
 func (p *defaultChannelProvider) Channel() (channel, error) {
@@ -104,7 +162,18 @@ func (p *defaultChannelProvider) Channel() (channel, error) {
 		return nil, fmt.Errorf("create AMQP channel: %w", err)
 	}
 
-	return &channelWrapper{Channel: amqpChan}, nil
+	var confirmChan chan amqp.Confirmation
+
+	if p.confirmDelivery {
+		err = amqpChan.Confirm(false)
+		if err != nil {
+			return nil, fmt.Errorf("confirm AMQP channel: %w", err)
+		}
+
+		confirmChan = amqpChan.NotifyPublish(make(chan amqp.Confirmation, 1))
+	}
+
+	return &channelWrapper{amqpChan, confirmChan}, nil
 }
 
 func (p *defaultChannelProvider) CloseChannel(c channel) error {
@@ -130,7 +199,8 @@ type pooledChannelProvider struct {
 	closedChan chan struct{}
 }
 
-func newPooledChannelProvider(conn *ConnectionWrapper, poolSize int, logger watermill.LoggerAdapter) (channelProvider, error) {
+func newPooledChannelProvider(conn *ConnectionWrapper, poolSize int, confirmDelivery bool,
+	logger watermill.LoggerAdapter) (channelProvider, error) {
 	logger.Info("Creating pooled channel provider", watermill.LogFields{"pool-size": poolSize})
 
 	channels := make([]*pooledChannel, poolSize)
@@ -140,7 +210,7 @@ func newPooledChannelProvider(conn *ConnectionWrapper, poolSize int, logger wate
 	// Create the channels and add them to the pool.
 
 	for i := 0; i < poolSize; i++ {
-		c, err := newPooledChannel(conn, logger)
+		c, err := newPooledChannel(conn, logger, confirmDelivery)
 		if err != nil {
 			return nil, err
 		}

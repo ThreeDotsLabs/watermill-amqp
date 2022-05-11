@@ -32,6 +32,17 @@ func createPubSub(t *testing.T) (message.Publisher, message.Subscriber) {
 	return createPubSubWithConfig(t, publisherCfg)
 }
 
+func createPubSubWithDeliveryConfirmation(t *testing.T) (message.Publisher, message.Subscriber) {
+	publisherCfg := amqp.NewDurablePubSubConfig(
+		amqpURI(),
+		nil,
+	)
+
+	publisherCfg.Publish.ConfirmDelivery = true
+
+	return createPubSubWithConfig(t, publisherCfg)
+}
+
 func createPubSubWithPublisherChannelPool(t *testing.T) (message.Publisher, message.Subscriber) {
 	publisherCfg := amqp.NewDurablePubSubConfig(
 		amqpURI(),
@@ -39,6 +50,18 @@ func createPubSubWithPublisherChannelPool(t *testing.T) (message.Publisher, mess
 	)
 
 	publisherCfg.Publish.ChannelPoolSize = 50
+
+	return createPubSubWithConfig(t, publisherCfg)
+}
+
+func createPubSubWithPublisherChannelPoolAndDeliveryConfirmation(t *testing.T) (message.Publisher, message.Subscriber) {
+	publisherCfg := amqp.NewDurablePubSubConfig(
+		amqpURI(),
+		nil,
+	)
+
+	publisherCfg.Publish.ChannelPoolSize = 50
+	publisherCfg.Publish.ConfirmDelivery = true
 
 	return createPubSubWithConfig(t, publisherCfg)
 }
@@ -121,6 +144,21 @@ func TestPublishSubscribe_pubsub(t *testing.T) {
 	)
 }
 
+func TestPublishSubscribe_pubsub_delivery_confirmation(t *testing.T) {
+	tests.TestPubSub(
+		t,
+		tests.Features{
+			ConsumerGroups:                      true,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+		},
+		createPubSubWithDeliveryConfirmation,
+		createPubSubWithConsumerGroup,
+	)
+}
+
 func TestPublishSubscribe_pubsub_with_channel_pool(t *testing.T) {
 	tests.TestPubSub(
 		t,
@@ -132,6 +170,21 @@ func TestPublishSubscribe_pubsub_with_channel_pool(t *testing.T) {
 			Persistent:                          true,
 		},
 		createPubSubWithPublisherChannelPool,
+		createPubSubWithConsumerGroup,
+	)
+}
+
+func TestPublishSubscribe_pubsub_with_channel_pool_and_delivery_confirmation(t *testing.T) {
+	tests.TestPubSub(
+		t,
+		tests.Features{
+			ConsumerGroups:                      true,
+			ExactlyOnceDelivery:                 false,
+			GuaranteedOrder:                     true,
+			GuaranteedOrderWithSingleSubscriber: true,
+			Persistent:                          true,
+		},
+		createPubSubWithPublisherChannelPoolAndDeliveryConfirmation,
 		createPubSubWithConsumerGroup,
 	)
 }
