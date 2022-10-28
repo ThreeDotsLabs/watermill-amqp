@@ -1,5 +1,5 @@
 up:
-	docker-compose up
+	docker-compose up -d
 
 down:
 	docker-compose down
@@ -21,6 +21,9 @@ test_stress:
 
 test_reconnect:
 	go test -tags=reconnect ./...
+
+wait:
+	go run github.com/ThreeDotsLabs/watermill/dev/wait-for@github-actions rabbitmq:5672
 
 build:
 	go build ./...
