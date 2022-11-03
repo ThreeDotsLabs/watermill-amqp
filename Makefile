@@ -23,7 +23,7 @@ test_reconnect:
 	go test -tags=reconnect ./...
 
 wait:
-	go run github.com/ThreeDotsLabs/watermill/dev/wait-for@github-actions rabbitmq:5672
+	go run github.com/ThreeDotsLabs/watermill/dev/wait-for@github-actions localhost:5672
 
 build:
 	go build ./...
