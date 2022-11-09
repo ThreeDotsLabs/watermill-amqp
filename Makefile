@@ -23,9 +23,6 @@ test_reconnect:
 	go test -tags=reconnect ./...
 
 wait:
-	time go run github.com/ThreeDotsLabs/watermill/dev/wait-for@github-actions || true
-	time go run github.com/ThreeDotsLabs/wait-for@latest || true
-	go run github.com/ThreeDotsLabs/watermill/dev/wait-for@github-actions localhost:5672
 	go run github.com/ThreeDotsLabs/wait-for@latest localhost:5672
 
 build:
