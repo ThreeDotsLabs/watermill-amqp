@@ -1,7 +1,7 @@
 # Watermill AMQP Pub/Sub
 <img align="right" width="200" src="https://threedots.tech/watermill-io/watermill-logo.png">
 
-[![CircleCI](https://circleci.com/gh/ThreeDotsLabs/watermill-amqp/tree/master.svg?style=svg)](https://circleci.com/gh/ThreeDotsLabs/watermill-amqp/tree/master)
+[![CI Status](https://github.com/ThreeDotsLabs/watermill-amqp/actions/workflows/master.yml/badge.svg)](https://github.com/ThreeDotsLabs/watermill-amqp/actions/workflows/master.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ThreeDotsLabs/watermill-amqp)](https://goreportcard.com/report/github.com/ThreeDotsLabs/watermill-amqp)
 
 This is Pub/Sub for the [Watermill](https://watermill.io/) project.
