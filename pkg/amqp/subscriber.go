@@ -65,7 +65,7 @@ func NewSubscriber(config Config, logger watermill.LoggerAdapter) (*Subscriber, 
 }
 
 func NewSubscriberWithConnection(config Config, logger watermill.LoggerAdapter, conn *ConnectionWrapper) (*Subscriber, error) {
-	if err := config.ValidateSubscriber(); err != nil {
+	if err := config.ValidateSubscriberWithConnection(); err != nil {
 		return nil, err
 	}
 

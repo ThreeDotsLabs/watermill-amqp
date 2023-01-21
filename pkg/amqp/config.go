@@ -212,11 +212,13 @@ type Config struct {
 	TopologyBuilder TopologyBuilder
 }
 
-func (c Config) validate() error {
+func (c Config) validate(validateConnection bool) error {
 	var err error
 
-	if c.Connection.AmqpURI == "" {
-		err = multierror.Append(err, errors.New("empty Config.AmqpURI"))
+	if validateConnection {
+		if c.Connection.AmqpURI == "" {
+			err = multierror.Append(err, errors.New("empty Config.AmqpURI"))
+		}
 	}
 	if c.Marshaler == nil {
 		err = multierror.Append(err, errors.New("missing Config.Marshaler"))
@@ -228,8 +230,8 @@ func (c Config) validate() error {
 	return err
 }
 
-func (c Config) ValidatePublisher() error {
-	err := c.validate()
+func (c Config) validatePublisher(validateConnection bool) error {
+	err := c.validate(validateConnection)
 
 	if c.Publish.GenerateRoutingKey == nil {
 		err = multierror.Append(err, errors.New("missing Config.GenerateRoutingKey"))
@@ -238,14 +240,30 @@ func (c Config) ValidatePublisher() error {
 	return err
 }
 
-func (c Config) ValidateSubscriber() error {
-	err := c.validate()
+func (c Config) validateSubscriber(validateConnection bool) error {
+	err := c.validate(validateConnection)
 
 	if c.Queue.GenerateName == nil {
 		err = multierror.Append(err, errors.New("missing Config.Queue.GenerateName"))
 	}
 
 	return err
+}
+
+func (c Config) ValidatePublisher() error {
+	return c.validatePublisher(true)
+}
+
+func (c Config) ValidatePublisherWithConnection() error {
+	return c.validatePublisher(false)
+}
+
+func (c Config) ValidateSubscriber() error {
+	return c.validateSubscriber(true)
+}
+
+func (c Config) ValidateSubscriberWithConnection() error {
+	return c.validateSubscriber(false)
 }
 
 type ConnectionConfig struct {
@@ -325,7 +343,8 @@ func GenerateQueueNameConstant(queueName string) QueueNameGenerator {
 }
 
 // GenerateQueueNameTopicNameWithSuffix generates queue name equal to:
-// 	topic + "_" + suffix
+//
+//	topic + "_" + suffix
 func GenerateQueueNameTopicNameWithSuffix(suffix string) QueueNameGenerator {
 	return func(topic string) string {
 		return topic + "_" + suffix
