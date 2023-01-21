@@ -58,7 +58,7 @@ func NewPublisher(config Config, logger watermill.LoggerAdapter) (*Publisher, er
 }
 
 func NewPublisherWithConnection(config Config, logger watermill.LoggerAdapter, conn *ConnectionWrapper) (*Publisher, error) {
-	if err := config.ValidatePublisher(); err != nil {
+	if err := config.ValidatePublisherWithConnection(); err != nil {
 		return nil, err
 	}
 

@@ -284,13 +284,44 @@ func TestPublishSubscribe_queue_with_shared_connection(t *testing.T) {
 func TestSharedConnection(t *testing.T) {
 	const topic = "topicXXX"
 
-	config := amqp.NewDurableQueueConfig(
-		amqpURI(),
-	)
+	config := amqp.Config{
+		// No Connection field here
+		Marshaler: amqp.DefaultMarshaler{},
+
+		Exchange: amqp.ExchangeConfig{
+			GenerateName: func(topic string) string {
+				return ""
+			},
+		},
+		Queue: amqp.QueueConfig{
+			GenerateName: amqp.GenerateQueueNameTopicName,
+			Durable:      true,
+		},
+		QueueBind: amqp.QueueBindConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return ""
+			},
+		},
+		Publish: amqp.PublishConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Consume: amqp.ConsumeConfig{
+			Qos: amqp.QosConfig{
+				PrefetchCount: 1,
+			},
+		},
+		TopologyBuilder: &amqp.DefaultTopologyBuilder{},
+	}
 
 	logger := watermill.NewStdLogger(true, true)
 
-	conn, err := amqp.NewConnection(config.Connection, logger)
+	connConfig := amqp.ConnectionConfig{
+		AmqpURI: amqpURI(),
+	}
+
+	conn, err := amqp.NewConnection(connConfig, logger)
 	require.NoError(t, err)
 
 	s, err := amqp.NewSubscriberWithConnection(config, logger, conn)
