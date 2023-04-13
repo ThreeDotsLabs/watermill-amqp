@@ -11,11 +11,10 @@ import (
 // Default TopologyBuilder is DefaultTopologyBuilder.
 // If you need custom built topology, you should implement your own TopologyBuilder and pass it to the amqp.Config:
 //
-// 	config := NewDurablePubSubConfig()
-// 	config.TopologyBuilder = MyProCustomBuilder{}
-//
+//	config := NewDurablePubSubConfig()
+//	config.TopologyBuilder = MyProCustomBuilder{}
 type TopologyBuilder interface {
-	BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, config Config, logger watermill.LoggerAdapter) error
+	BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, routingKey string, config Config, logger watermill.LoggerAdapter) error
 	ExchangeDeclare(channel *amqp.Channel, exchangeName string, config Config) error
 }
 
@@ -33,7 +32,7 @@ func (builder DefaultTopologyBuilder) ExchangeDeclare(channel *amqp.Channel, exc
 	)
 }
 
-func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, config Config, logger watermill.LoggerAdapter) error {
+func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, routingKey string, config Config, logger watermill.LoggerAdapter) error {
 	if _, err := channel.QueueDeclare(
 		queueName,
 		config.Queue.Durable,
@@ -59,7 +58,7 @@ func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queu
 
 	if err := channel.QueueBind(
 		queueName,
-		config.QueueBind.GenerateRoutingKey(queueName),
+		routingKey,
 		exchangeName,
 		config.QueueBind.NoWait,
 		config.QueueBind.Arguments,

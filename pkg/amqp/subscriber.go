@@ -122,7 +122,10 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 	exchangeName := s.config.Exchange.GenerateName(topic)
 	logFields["amqp_exchange_name"] = exchangeName
 
-	if err := s.prepareConsume(queueName, exchangeName, logFields); err != nil {
+	routingKey := s.config.QueueBind.GenerateRoutingKey(topic)
+	logFields["amqp_routing_key"] = routingKey
+
+	if err := s.prepareConsume(queueName, exchangeName, routingKey, logFields); err != nil {
 		return nil, errors.Wrap(err, "failed to prepare consume")
 	}
 
@@ -190,9 +193,12 @@ func (s *Subscriber) SubscribeInitialize(topic string) (err error) {
 	exchangeName := s.config.Exchange.GenerateName(topic)
 	logFields["amqp_exchange_name"] = exchangeName
 
+	routingKey := s.config.QueueBind.GenerateRoutingKey(topic)
+	logFields["amqp_routing_key"] = routingKey
+
 	s.logger.Info("Initializing subscribe", logFields)
 
-	return errors.Wrap(s.prepareConsume(queueName, exchangeName, logFields), "failed to prepare consume")
+	return errors.Wrap(s.prepareConsume(queueName, exchangeName, routingKey, logFields), "failed to prepare consume")
 }
 
 // Close closes all subscriptions with their output channels.
@@ -200,7 +206,7 @@ func (s *Subscriber) Close() error {
 	return s.closeSubscriber()
 }
 
-func (s *Subscriber) prepareConsume(queueName string, exchangeName string, logFields watermill.LogFields) (err error) {
+func (s *Subscriber) prepareConsume(queueName string, routingKey string, exchangeName string, logFields watermill.LogFields) (err error) {
 	channel, err := s.openSubscribeChannel(logFields)
 	if err != nil {
 		return err
@@ -211,7 +217,7 @@ func (s *Subscriber) prepareConsume(queueName string, exchangeName string, logFi
 		}
 	}()
 
-	if err = s.config.TopologyBuilder.BuildTopology(channel, queueName, exchangeName, s.config, s.logger); err != nil {
+	if err = s.config.TopologyBuilder.BuildTopology(channel, queueName, routingKey, exchangeName, s.config, s.logger); err != nil {
 		return err
 	}
 

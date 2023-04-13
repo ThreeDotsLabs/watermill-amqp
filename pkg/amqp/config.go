@@ -32,11 +32,9 @@ func NewDurablePubSubConfig(amqpURI string, generateQueueName QueueNameGenerator
 		Marshaler: DefaultMarshaler{},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return topic
-			},
-			Type:    "fanout",
-			Durable: true,
+			GenerateName: GenerateExchangeNameTopicName,
+			Type:         "fanout",
+			Durable:      true,
 		},
 		Queue: QueueConfig{
 			GenerateName: generateQueueName,
@@ -80,10 +78,8 @@ func NewNonDurablePubSubConfig(amqpURI string, generateQueueName QueueNameGenera
 		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return topic
-			},
-			Type: "fanout",
+			GenerateName: GenerateExchangeNameTopicName,
+			Type:         "fanout",
 		},
 		Queue: QueueConfig{
 			GenerateName: generateQueueName,
@@ -126,9 +122,7 @@ func NewDurableQueueConfig(amqpURI string) Config {
 		Marshaler: DefaultMarshaler{},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return ""
-			},
+			GenerateName: GenerateGenerateExchangeNameConstant(""),
 		},
 		Queue: QueueConfig{
 			GenerateName: GenerateQueueNameTopicName,
@@ -171,9 +165,7 @@ func NewNonDurableQueueConfig(amqpURI string) Config {
 		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return ""
-			},
+			GenerateName: GenerateGenerateExchangeNameConstant(""),
 		},
 		Queue: QueueConfig{
 			GenerateName: GenerateQueueNameTopicName,
@@ -181,6 +173,79 @@ func NewNonDurableQueueConfig(amqpURI string) Config {
 		QueueBind: QueueBindConfig{
 			GenerateRoutingKey: func(topic string) string {
 				return ""
+			},
+		},
+		Publish: PublishConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Consume: ConsumeConfig{
+			Qos: QosConfig{
+				PrefetchCount: 1,
+			},
+		},
+		TopologyBuilder: &DefaultTopologyBuilder{},
+	}
+}
+
+// NewDurableTopicConfig creates config for topic exchange for durable Queue.
+// Queue name and Exchange is set to the parameters.
+func NewDurableTopicConfig(amqpURI string, exchange string, queue string) Config {
+	return Config{
+		Connection: ConnectionConfig{
+			AmqpURI: amqpURI,
+		},
+
+		Marshaler: DefaultMarshaler{},
+
+		Exchange: ExchangeConfig{
+			GenerateName: GenerateGenerateExchangeNameConstant(exchange),
+			Type:         "topic",
+		},
+		Queue: QueueConfig{
+			GenerateName: GenerateQueueNameConstant(queue),
+			Durable:      true,
+		},
+		QueueBind: QueueBindConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Publish: PublishConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Consume: ConsumeConfig{
+			Qos: QosConfig{
+				PrefetchCount: 1,
+			},
+		},
+		TopologyBuilder: &DefaultTopologyBuilder{},
+	}
+}
+
+// NewDurableTopicConfig creates config for topic exchange for none durable Queue.
+// Queue name and Exchange is set to the parameters.
+func NewNonDurableTopicConfig(amqpURI string, exchange string, queue string) Config {
+	return Config{
+		Connection: ConnectionConfig{
+			AmqpURI: amqpURI,
+		},
+
+		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
+
+		Exchange: ExchangeConfig{
+			GenerateName: GenerateGenerateExchangeNameConstant(exchange),
+			Type:         "topic",
+		},
+		Queue: QueueConfig{
+			GenerateName: GenerateQueueNameConstant(queue),
+		},
+		QueueBind: QueueBindConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
 			},
 		},
 		Publish: PublishConfig{
@@ -275,6 +340,21 @@ type ConnectionConfig struct {
 	Reconnect *ReconnectConfig
 }
 
+// QueueNameGenerator generates QueueName based on the topic.
+type ExchangeNameGenerator func(topic string) string
+
+// GenerateExchangeNameTopicName generates exchangeName equal to the topic.
+func GenerateExchangeNameTopicName(topic string) string {
+	return topic
+}
+
+// GenerateGenerateExchangeNameConstant generate exchangeName equal to exchangeName.
+func GenerateGenerateExchangeNameConstant(exchangeName string) ExchangeNameGenerator {
+	return func(topic string) string {
+		return exchangeName
+	}
+}
+
 // Config descriptions are based on descriptions from: https://github.com/streadway/amqp
 // Copyright (c) 2012, Sean Treadway, SoundCloud Ltd.
 // BSD 2-Clause "Simplified" License
@@ -287,7 +367,7 @@ type ExchangeConfig struct {
 	// "amq." if the passive option is set, or the exchange already exists.  Names can
 	// consist of a non-empty sequence of letters, digits, hyphen, underscore,
 	// period, or colon.
-	GenerateName func(topic string) string
+	GenerateName ExchangeNameGenerator
 
 	// Each exchange belongs to one of a set of exchange kinds/types implemented by
 	// the server. The exchange types define the functionality of the exchange - i.e.
