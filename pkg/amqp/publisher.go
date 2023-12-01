@@ -187,7 +187,8 @@ func (p *Publisher) publishMessage(
 		return errors.Wrap(err, "cannot marshal message")
 	}
 
-	if err = channel.AMQPChannel().Publish(
+	if err = channel.AMQPChannel().PublishWithContext(
+		msg.Context(),
 		exchangeName,
 		routingKey,
 		p.config.Publish.Mandatory,
