@@ -122,10 +122,6 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 	exchangeName := s.config.Exchange.GenerateName(topic)
 	logFields["amqp_exchange_name"] = exchangeName
 
-	if err := s.prepareConsume(queueName, exchangeName, logFields); err != nil {
-		return nil, errors.Wrap(err, "failed to prepare consume")
-	}
-
 	s.subscriberWaitGroup.Add(1)
 	s.connectionWaitGroup.Add(1)
 
@@ -192,7 +188,7 @@ func (s *Subscriber) SubscribeInitialize(topic string) (err error) {
 
 	s.logger.Info("Initializing subscribe", logFields)
 
-	return errors.Wrap(s.prepareConsume(queueName, exchangeName, logFields), "failed to prepare consume")
+	return nil
 }
 
 // Close closes all subscriptions with their output channels.
@@ -237,6 +233,11 @@ func (s *Subscriber) runSubscriber(
 			s.logger.Error("Failed to close channel", err, logFields)
 		}
 	}()
+
+	if err = s.prepareConsume(queueName, exchangeName, logFields); err != nil {
+		s.logger.Error("Failed to prepare consume", err, logFields)
+		return
+	}
 
 	notifyCloseChannel := channel.NotifyClose(make(chan *amqp.Error, 1))
 
