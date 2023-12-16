@@ -122,10 +122,6 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 	exchangeName := s.config.Exchange.GenerateName(topic)
 	logFields["amqp_exchange_name"] = exchangeName
 
-	if err := s.prepareConsume(queueName, exchangeName, logFields); err != nil {
-		return nil, errors.Wrap(err, "failed to prepare consume")
-	}
-
 	s.subscriberWaitGroup.Add(1)
 	s.connectionWaitGroup.Add(1)
 
@@ -156,6 +152,11 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			select {
 			case <-s.connected:
 				s.logger.Debug("Connection established in ReconnectLoop", logFields)
+
+				if err := s.prepareConsume(queueName, exchangeName, logFields); err != nil {
+					s.logger.Error("Failed to prepare consume", err, logFields)
+				}
+
 				// runSubscriber blocks until connection fails or Close() is called
 				s.runSubscriber(ctx, out, queueName, exchangeName, logFields)
 			case <-s.closing:
