@@ -84,11 +84,7 @@ func (d DefaultMarshaler) Unmarshal(amqpMsg amqp.Delivery) (*message.Message, er
 			continue
 		}
 
-		var ok bool
-		msg.Metadata[key], ok = value.(string)
-		if !ok {
-			return nil, errors.Errorf("metadata %s is not a string, but %#v", key, value)
-		}
+		msg.Metadata[key] = d.valueToString(value)
 	}
 
 	return msg, nil
@@ -116,4 +112,24 @@ func (d DefaultMarshaler) computeMessageUUIDHeaderKey() string {
 	}
 
 	return DefaultMessageUUIDHeaderKey
+}
+
+func (d DefaultMarshaler) valueToString(value interface{}) string {
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Bool:
+		return fmt.Sprintf("%t", v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return fmt.Sprintf("%d", v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return fmt.Sprintf("%d", v.Uint())
+	case reflect.Float32, reflect.Float64:
+		return fmt.Sprintf("%f", v.Float())
+	case reflect.String:
+		return v.String()
+	case reflect.Invalid:
+		return "nil"
+	default:
+		return fmt.Sprintf("%v", value)
+	}
 }
