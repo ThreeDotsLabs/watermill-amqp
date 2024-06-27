@@ -349,7 +349,7 @@ func GenerateExchangeNameTopicName(topic string) string {
 }
 
 // GenerateGenerateExchangeNameConstant generate exchangeName equal to exchangeName.
-func GenerateGenerateExchangeNameConstant(exchangeName string) ExchangeNameGenerator {
+func GenerateExchangeNameConstant(exchangeName string) ExchangeNameGenerator {
 	return func(topic string) string {
 		return exchangeName
 	}
