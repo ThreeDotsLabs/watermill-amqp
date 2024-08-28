@@ -1,8 +1,8 @@
 up:
-	docker-compose up -d
+	docker compose up -d
 
 down:
-	docker-compose down
+	docker compose down
 
 test:
 	go test -parallel 20 ./...
@@ -18,6 +18,9 @@ test_race:
 
 test_stress:
 	go test -tags=stress -parallel 30 -timeout=45m ./...
+
+test_codecov: up wait
+	go test -coverprofile=coverage.out -covermode=atomic ./...
 
 test_reconnect:
 	go test -tags=reconnect ./...
