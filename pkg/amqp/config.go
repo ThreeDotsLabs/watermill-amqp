@@ -147,12 +147,12 @@ func NewDurableQueueConfig(amqpURI string) Config {
 	}
 }
 
-// NewNonDurableQueueConfig creates config for non durable Queue.
+// NewNonDurableQueueConfig creates config for non-durable Queue.
 // Queue name and routing key is set to the topic name by default. Default ("") exchange is used.
 //
 // IMPORTANT: Watermill's topic is not mapped directly to the AMQP's topic exchange type.
 // It is used to generate exchange name, routing key and queue name, depending on the context.
-// To check how topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
+// To check how the topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
 //
 // This config is based on this example: https://www.rabbitmq.com/tutorials/tutorial-two-go.html.
 // This config is not durable, so on the restart of the broker all messages will be lost.
@@ -190,7 +190,7 @@ func NewNonDurableQueueConfig(amqpURI string) Config {
 }
 
 // NewDurableTopicConfig creates config for topic exchange for durable Queue.
-// Queue name and Exchange is set to the parameters.
+// Queue name and Exchange are set to the parameters.
 func NewDurableTopicConfig(amqpURI string, exchange string, queue string) Config {
 	return Config{
 		Connection: ConnectionConfig{
@@ -226,8 +226,8 @@ func NewDurableTopicConfig(amqpURI string, exchange string, queue string) Config
 	}
 }
 
-// NewDurableTopicConfig creates config for topic exchange for none durable Queue.
-// Queue name and Exchange is set to the parameters.
+// NewNonDurableTopicConfig creates config for topic exchange for non-durable Queue.
+// Queue name and Exchange are set to the parameters.
 func NewNonDurableTopicConfig(amqpURI string, exchange string, queue string) Config {
 	return Config{
 		Connection: ConnectionConfig{
