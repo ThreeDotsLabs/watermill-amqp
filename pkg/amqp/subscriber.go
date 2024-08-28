@@ -220,8 +220,8 @@ func (s *Subscriber) prepareConsume(topic string, queueName string, routingKey s
 	params := BuildTopologyParams{
 		Topic:        topic,
 		QueueName:    queueName,
-		ExchangeName: routingKey,
-		RoutingKey:   exchangeName,
+		ExchangeName: exchangeName,
+		RoutingKey:   routingKey,
 	}
 
 	if err = s.config.TopologyBuilder.BuildTopology(channel, params, s.config, s.logger); err != nil {
