@@ -59,13 +59,13 @@ func NewDurablePubSubConfig(amqpURI string, generateQueueName QueueNameGenerator
 	}
 }
 
-// NewNonDurablePubSubConfig creates config for non durable PubSub.
+// NewNonDurablePubSubConfig creates config for non-durable PubSub.
 // generateQueueName is optional, when passing to the publisher.
-// Exchange name is set to the topic name and routing key is empty.
+// Exchange name is set to the topic name and the routing key is empty.
 //
 // IMPORTANT: Watermill's topic is not mapped directly to the AMQP's topic exchange type.
 // It is used to generate exchange name, routing key and queue name, depending on the context.
-// To check how topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
+// To check how the topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
 //
 // This config is based on this example: https://www.rabbitmq.com/tutorials/tutorial-three-go.html.
 // This config is not durable, so on the restart of the broker all messages will be lost.
@@ -122,7 +122,7 @@ func NewDurableQueueConfig(amqpURI string) Config {
 		Marshaler: DefaultMarshaler{},
 
 		Exchange: ExchangeConfig{
-			GenerateName: GenerateGenerateExchangeNameConstant(""),
+			GenerateName: GenerateExchangeNameConstant(""),
 		},
 		Queue: QueueConfig{
 			GenerateName: GenerateQueueNameTopicName,
@@ -165,7 +165,7 @@ func NewNonDurableQueueConfig(amqpURI string) Config {
 		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
 
 		Exchange: ExchangeConfig{
-			GenerateName: GenerateGenerateExchangeNameConstant(""),
+			GenerateName: GenerateExchangeNameConstant(""),
 		},
 		Queue: QueueConfig{
 			GenerateName: GenerateQueueNameTopicName,
@@ -200,7 +200,7 @@ func NewDurableTopicConfig(amqpURI string, exchange string, queue string) Config
 		Marshaler: DefaultMarshaler{},
 
 		Exchange: ExchangeConfig{
-			GenerateName: GenerateGenerateExchangeNameConstant(exchange),
+			GenerateName: GenerateExchangeNameConstant(exchange),
 			Type:         "topic",
 		},
 		Queue: QueueConfig{
@@ -237,7 +237,7 @@ func NewNonDurableTopicConfig(amqpURI string, exchange string, queue string) Con
 		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
 
 		Exchange: ExchangeConfig{
-			GenerateName: GenerateGenerateExchangeNameConstant(exchange),
+			GenerateName: GenerateExchangeNameConstant(exchange),
 			Type:         "topic",
 		},
 		Queue: QueueConfig{
