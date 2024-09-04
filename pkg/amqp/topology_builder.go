@@ -9,19 +9,26 @@ import (
 // TopologyBuilder is responsible for declaring exchange, queues and queues binding.
 //
 // Default TopologyBuilder is DefaultTopologyBuilder.
-// If you need custom built topology, you should implement your own TopologyBuilder and pass it to the amqp.Config:
+// If you need a custom-built topology, you should implement your own TopologyBuilder and pass it to the amqp.Config:
 //
-// 	config := NewDurablePubSubConfig()
-// 	config.TopologyBuilder = MyProCustomBuilder{}
-//
+//	config := NewDurablePubSubConfig()
+//	config.TopologyBuilder = MyProCustomBuilder{}
 type TopologyBuilder interface {
-	BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, config Config, logger watermill.LoggerAdapter) error
+	BuildTopology(channel *amqp.Channel, params BuildTopologyParams, config Config, logger watermill.LoggerAdapter) error
 	ExchangeDeclare(channel *amqp.Channel, exchangeName string, config Config) error
+}
+
+// BuildTopologyParams are parameters for building AMQP topology.
+type BuildTopologyParams struct {
+	Topic        string
+	QueueName    string
+	ExchangeName string
+	RoutingKey   string
 }
 
 type DefaultTopologyBuilder struct{}
 
-func (builder DefaultTopologyBuilder) ExchangeDeclare(channel *amqp.Channel, exchangeName string, config Config) error {
+func (builder *DefaultTopologyBuilder) ExchangeDeclare(channel *amqp.Channel, exchangeName string, config Config) error {
 	return channel.ExchangeDeclare(
 		exchangeName,
 		config.Exchange.Type,
@@ -33,9 +40,9 @@ func (builder DefaultTopologyBuilder) ExchangeDeclare(channel *amqp.Channel, exc
 	)
 }
 
-func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queueName string, exchangeName string, config Config, logger watermill.LoggerAdapter) error {
+func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, params BuildTopologyParams, config Config, logger watermill.LoggerAdapter) error {
 	if _, err := channel.QueueDeclare(
-		queueName,
+		params.QueueName,
 		config.Queue.Durable,
 		config.Queue.AutoDelete,
 		config.Queue.Exclusive,
@@ -47,20 +54,20 @@ func (builder *DefaultTopologyBuilder) BuildTopology(channel *amqp.Channel, queu
 
 	logger.Debug("Queue declared", nil)
 
-	if exchangeName == "" {
+	if params.ExchangeName == "" {
 		logger.Debug("No exchange to declare", nil)
 		return nil
 	}
-	if err := builder.ExchangeDeclare(channel, exchangeName, config); err != nil {
+	if err := builder.ExchangeDeclare(channel, params.ExchangeName, config); err != nil {
 		return errors.Wrap(err, "cannot declare exchange")
 	}
 
 	logger.Debug("Exchange declared", nil)
 
 	if err := channel.QueueBind(
-		queueName,
-		config.QueueBind.GenerateRoutingKey(queueName),
-		exchangeName,
+		params.QueueName,
+		params.RoutingKey,
+		params.ExchangeName,
 		config.QueueBind.NoWait,
 		config.QueueBind.Arguments,
 	); err != nil {
