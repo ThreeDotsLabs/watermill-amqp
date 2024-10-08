@@ -128,7 +128,7 @@ func (c *ConnectionWrapper) handleConnectionClose() {
 		<-c.connected
 		c.logger.Debug("handleConnectionClose is for connection or Pub/Sub close", nil)
 
-		notifyCloseConnection := c.amqpConnection.NotifyClose(make(chan *amqp.Error))
+		notifyCloseConnection := c.amqpConnection.NotifyClose(make(chan *amqp.Error, 1))
 
 		select {
 		case <-c.closing:
