@@ -140,7 +140,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			s.subscriberWaitGroup.Done()
 		}()
 
-	reconnecting := false
+		reconnecting := false
 	ReconnectLoop:
 		for {
 			s.logger.Debug("Waiting for s.connected or s.closing in ReconnectLoop", logFields)
@@ -158,7 +158,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			}
 
 			if reconnecting {
-				if err := s.prepareConsume(queueName, exchangeName, logFields); err != nil {
+				if err := s.prepareConsume(topic, queueName, exchangeName, routingKey, logFields); err != nil {
 					s.logger.Error("Failed to prepare consume", err, logFields)
 				}
 			}
