@@ -432,7 +432,7 @@ func GenerateQueueNameTopicNameWithSuffix(suffix string) QueueNameGenerator {
 }
 
 type QueueConfig struct {
-	// GenerateRoutingKey is generated based on the topic provided for Subscribe.
+	// GenerateName generates the queue name based on the topic provided for Publish or Subscribe method.
 	GenerateName QueueNameGenerator
 
 	// Durable and Non-Auto-Deleted queues will survive server restarts and remain
@@ -457,12 +457,12 @@ type QueueConfig struct {
 	// delete a queue with the same name.
 	Exclusive bool
 
-	// When noWait is true, the queue will assume to be declared on the server.  A
-	// channel exception will arrive if the conditions are met for existing queues
+	// When NoWait is true, the queue is assumed to be declared on the server.
+	// A channel exception will arrive if the conditions are met for existing queues
 	// or attempting to modify an existing queue from a different connection.
 	NoWait bool
 
-	// Optional amqpe.Table of arguments that are specific to the server's implementation of
+	// Optional amqp.Table of arguments that are specific to the server's implementation of
 	// the queue can be sent for queue types that require extra parameters.
 	Arguments amqp.Table
 }
@@ -471,6 +471,7 @@ type QueueConfig struct {
 // be routed to the queue when the publishing routing key matches the binding
 // routing key.
 type QueueBindConfig struct {
+	// GenerateRoutingKey generates the routing key based on the topic provided Subscribe.
 	GenerateRoutingKey func(topic string) string
 
 	// When noWait is false and the queue could not be bound, the channel will be
@@ -483,7 +484,7 @@ type QueueBindConfig struct {
 }
 
 type PublishConfig struct {
-	// GenerateRoutingKey is generated based on the topic provided for Publish.
+	// GenerateRoutingKey generates the routing key based on the topic provided for Publish.
 	GenerateRoutingKey func(topic string) string
 
 	// Publishings can be undeliverable when the mandatory flag is true and no queue is
@@ -544,7 +545,7 @@ type ConsumeConfig struct {
 	Arguments amqp.Table
 }
 
-// Qos controls how many messages or how many bytes the server will try to keep on
+// QosConfig controls how many messages or how many bytes the server will try to keep on
 // the network for consumers before receiving delivery acks.  The intent of Qos is
 // to make sure the network buffers stay full between the server and client.
 type QosConfig struct {
