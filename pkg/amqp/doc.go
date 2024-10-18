@@ -7,7 +7,7 @@
 // - TLS support
 // - Publish Transactions support (optional, can be enabled in config)
 //
-// Nomenclature
+// # Nomenclature
 //
 // Unfortunately, Watermill's nomenclature is not fully compatible with AMQP's nomenclature.
 // Depending of the configuration, topic can be mapped to exchange name, routing key and queue name.

@@ -1,4 +1,4 @@
-module github.com/ThreeDotsLabs/watermill-amqp/v2
+module github.com/ThreeDotsLabs/watermill-amqp/v3
 
 go 1.21
 
