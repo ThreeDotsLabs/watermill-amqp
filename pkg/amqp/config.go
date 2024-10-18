@@ -32,11 +32,9 @@ func NewDurablePubSubConfig(amqpURI string, generateQueueName QueueNameGenerator
 		Marshaler: DefaultMarshaler{},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return topic
-			},
-			Type:    "fanout",
-			Durable: true,
+			GenerateName: GenerateExchangeNameTopicName,
+			Type:         "fanout",
+			Durable:      true,
 		},
 		Queue: QueueConfig{
 			GenerateName: generateQueueName,
@@ -61,13 +59,13 @@ func NewDurablePubSubConfig(amqpURI string, generateQueueName QueueNameGenerator
 	}
 }
 
-// NewNonDurablePubSubConfig creates config for non durable PubSub.
+// NewNonDurablePubSubConfig creates config for non-durable PubSub.
 // generateQueueName is optional, when passing to the publisher.
-// Exchange name is set to the topic name and routing key is empty.
+// Exchange name is set to the topic name and the routing key is empty.
 //
 // IMPORTANT: Watermill's topic is not mapped directly to the AMQP's topic exchange type.
 // It is used to generate exchange name, routing key and queue name, depending on the context.
-// To check how topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
+// To check how the topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
 //
 // This config is based on this example: https://www.rabbitmq.com/tutorials/tutorial-three-go.html.
 // This config is not durable, so on the restart of the broker all messages will be lost.
@@ -80,10 +78,8 @@ func NewNonDurablePubSubConfig(amqpURI string, generateQueueName QueueNameGenera
 		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return topic
-			},
-			Type: "fanout",
+			GenerateName: GenerateExchangeNameTopicName,
+			Type:         "fanout",
 		},
 		Queue: QueueConfig{
 			GenerateName: generateQueueName,
@@ -126,9 +122,7 @@ func NewDurableQueueConfig(amqpURI string) Config {
 		Marshaler: DefaultMarshaler{},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return ""
-			},
+			GenerateName: GenerateExchangeNameConstant(""),
 		},
 		Queue: QueueConfig{
 			GenerateName: GenerateQueueNameTopicName,
@@ -153,12 +147,12 @@ func NewDurableQueueConfig(amqpURI string) Config {
 	}
 }
 
-// NewNonDurableQueueConfig creates config for non durable Queue.
+// NewNonDurableQueueConfig creates config for non-durable Queue.
 // Queue name and routing key is set to the topic name by default. Default ("") exchange is used.
 //
 // IMPORTANT: Watermill's topic is not mapped directly to the AMQP's topic exchange type.
 // It is used to generate exchange name, routing key and queue name, depending on the context.
-// To check how topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
+// To check how the topic is mapped, please check Exchange.GenerateName, Queue.GenerateName and Publish.GenerateRoutingKey.
 //
 // This config is based on this example: https://www.rabbitmq.com/tutorials/tutorial-two-go.html.
 // This config is not durable, so on the restart of the broker all messages will be lost.
@@ -171,9 +165,7 @@ func NewNonDurableQueueConfig(amqpURI string) Config {
 		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
 
 		Exchange: ExchangeConfig{
-			GenerateName: func(topic string) string {
-				return ""
-			},
+			GenerateName: GenerateExchangeNameConstant(""),
 		},
 		Queue: QueueConfig{
 			GenerateName: GenerateQueueNameTopicName,
@@ -181,6 +173,79 @@ func NewNonDurableQueueConfig(amqpURI string) Config {
 		QueueBind: QueueBindConfig{
 			GenerateRoutingKey: func(topic string) string {
 				return ""
+			},
+		},
+		Publish: PublishConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Consume: ConsumeConfig{
+			Qos: QosConfig{
+				PrefetchCount: 1,
+			},
+		},
+		TopologyBuilder: &DefaultTopologyBuilder{},
+	}
+}
+
+// NewDurableTopicConfig creates config for topic exchange for durable Queue.
+// Queue name and Exchange are set to the parameters.
+func NewDurableTopicConfig(amqpURI string, exchange string, queue string) Config {
+	return Config{
+		Connection: ConnectionConfig{
+			AmqpURI: amqpURI,
+		},
+
+		Marshaler: DefaultMarshaler{},
+
+		Exchange: ExchangeConfig{
+			GenerateName: GenerateExchangeNameConstant(exchange),
+			Type:         "topic",
+		},
+		Queue: QueueConfig{
+			GenerateName: GenerateQueueNameConstant(queue),
+			Durable:      true,
+		},
+		QueueBind: QueueBindConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Publish: PublishConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
+			},
+		},
+		Consume: ConsumeConfig{
+			Qos: QosConfig{
+				PrefetchCount: 1,
+			},
+		},
+		TopologyBuilder: &DefaultTopologyBuilder{},
+	}
+}
+
+// NewNonDurableTopicConfig creates config for topic exchange for non-durable Queue.
+// Queue name and Exchange are set to the parameters.
+func NewNonDurableTopicConfig(amqpURI string, exchange string, queue string) Config {
+	return Config{
+		Connection: ConnectionConfig{
+			AmqpURI: amqpURI,
+		},
+
+		Marshaler: DefaultMarshaler{NotPersistentDeliveryMode: true},
+
+		Exchange: ExchangeConfig{
+			GenerateName: GenerateExchangeNameConstant(exchange),
+			Type:         "topic",
+		},
+		Queue: QueueConfig{
+			GenerateName: GenerateQueueNameConstant(queue),
+		},
+		QueueBind: QueueBindConfig{
+			GenerateRoutingKey: func(topic string) string {
+				return topic
 			},
 		},
 		Publish: PublishConfig{
@@ -275,6 +340,21 @@ type ConnectionConfig struct {
 	Reconnect *ReconnectConfig
 }
 
+// QueueNameGenerator generates QueueName based on the topic.
+type ExchangeNameGenerator func(topic string) string
+
+// GenerateExchangeNameTopicName generates exchangeName equal to the topic.
+func GenerateExchangeNameTopicName(topic string) string {
+	return topic
+}
+
+// GenerateExchangeNameConstant generates exchangeName equal to exchangeName.
+func GenerateExchangeNameConstant(exchangeName string) ExchangeNameGenerator {
+	return func(topic string) string {
+		return exchangeName
+	}
+}
+
 // Config descriptions are based on descriptions from: https://github.com/streadway/amqp
 // Copyright (c) 2012, Sean Treadway, SoundCloud Ltd.
 // BSD 2-Clause "Simplified" License
@@ -287,7 +367,7 @@ type ExchangeConfig struct {
 	// "amq." if the passive option is set, or the exchange already exists.  Names can
 	// consist of a non-empty sequence of letters, digits, hyphen, underscore,
 	// period, or colon.
-	GenerateName func(topic string) string
+	GenerateName ExchangeNameGenerator
 
 	// Each exchange belongs to one of a set of exchange kinds/types implemented by
 	// the server. The exchange types define the functionality of the exchange - i.e.
@@ -352,7 +432,7 @@ func GenerateQueueNameTopicNameWithSuffix(suffix string) QueueNameGenerator {
 }
 
 type QueueConfig struct {
-	// GenerateRoutingKey is generated based on the topic provided for Subscribe.
+	// GenerateName generates the queue name based on the topic provided for Publish or Subscribe method.
 	GenerateName QueueNameGenerator
 
 	// Durable and Non-Auto-Deleted queues will survive server restarts and remain
@@ -377,12 +457,12 @@ type QueueConfig struct {
 	// delete a queue with the same name.
 	Exclusive bool
 
-	// When noWait is true, the queue will assume to be declared on the server.  A
-	// channel exception will arrive if the conditions are met for existing queues
+	// When NoWait is true, the queue is assumed to be declared on the server.
+	// A channel exception will arrive if the conditions are met for existing queues
 	// or attempting to modify an existing queue from a different connection.
 	NoWait bool
 
-	// Optional amqpe.Table of arguments that are specific to the server's implementation of
+	// Optional amqp.Table of arguments that are specific to the server's implementation of
 	// the queue can be sent for queue types that require extra parameters.
 	Arguments amqp.Table
 }
@@ -391,6 +471,7 @@ type QueueConfig struct {
 // be routed to the queue when the publishing routing key matches the binding
 // routing key.
 type QueueBindConfig struct {
+	// GenerateRoutingKey generates the routing key based on the topic provided Subscribe.
 	GenerateRoutingKey func(topic string) string
 
 	// When noWait is false and the queue could not be bound, the channel will be
@@ -403,7 +484,7 @@ type QueueBindConfig struct {
 }
 
 type PublishConfig struct {
-	// GenerateRoutingKey is generated based on the topic provided for Publish.
+	// GenerateRoutingKey generates the routing key based on the topic provided for Publish.
 	GenerateRoutingKey func(topic string) string
 
 	// Publishings can be undeliverable when the mandatory flag is true and no queue is
@@ -464,7 +545,7 @@ type ConsumeConfig struct {
 	Arguments amqp.Table
 }
 
-// Qos controls how many messages or how many bytes the server will try to keep on
+// QosConfig controls how many messages or how many bytes the server will try to keep on
 // the network for consumers before receiving delivery acks.  The intent of Qos is
 // to make sure the network buffers stay full between the server and client.
 type QosConfig struct {

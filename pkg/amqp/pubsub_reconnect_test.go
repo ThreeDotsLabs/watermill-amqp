@@ -1,3 +1,4 @@
+//go:build reconnect
 // +build reconnect
 
 package amqp_test
