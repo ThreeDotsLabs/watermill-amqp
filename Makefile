@@ -27,7 +27,7 @@ test_reconnect:
 
 wait:
 	go run github.com/ThreeDotsLabs/wait-for@latest localhost:5672
-	go run github.com/ThreeDotsLabs/wait-for@latest localhost:15672
+	go run ./internal/wait-for
 
 build:
 	go build ./...
