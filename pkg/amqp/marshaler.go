@@ -1,12 +1,18 @@
 package amqp
 
 import (
+	"bytes"
+	"encoding/gob"
+
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/pkg/errors"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-const DefaultMessageUUIDHeaderKey = "_watermill_message_uuid"
+const (
+	DefaultMessageUUIDHeaderKey = "_watermill_message_uuid"
+	NotStringMetadataPostfix    = "_gob"
+)
 
 // deprecated, please use DefaultMessageUUIDHeaderKey instead
 const MessageUUIDHeaderKey = DefaultMessageUUIDHeaderKey
@@ -78,6 +84,11 @@ func (d DefaultMarshaler) Unmarshal(amqpMsg amqp.Delivery) (*message.Message, er
 
 	msg := message.NewMessage(msgUUIDStr, amqpMsg.Body)
 	msg.Metadata = make(message.Metadata, len(amqpMsg.Headers)-1) // headers - minus uuid
+	notStringMetadataKeysCapacity := len(amqpMsg.Headers) - 1
+	if notStringMetadataKeysCapacity < 0 {
+		notStringMetadataKeysCapacity = 0
+	}
+	notStringMetadataKeys := make([]string, 0, notStringMetadataKeysCapacity)
 
 	for key, value := range amqpMsg.Headers {
 		if key == d.computeMessageUUIDHeaderKey() {
@@ -87,7 +98,15 @@ func (d DefaultMarshaler) Unmarshal(amqpMsg amqp.Delivery) (*message.Message, er
 		var ok bool
 		msg.Metadata[key], ok = value.(string)
 		if !ok {
-			return nil, errors.Errorf("metadata %s is not a string, but %#v", key, value)
+			notStringMetadataKeys = append(notStringMetadataKeys, key)
+		}
+	}
+
+	var buf bytes.Buffer
+	for _, key := range notStringMetadataKeys {
+		msg.Metadata[key+NotStringMetadataPostfix], err = encodeValue(amqpMsg.Headers[key], &buf)
+		if err != nil {
+			return nil, errors.Errorf("can't encode metadata %s with value %#v", key, amqpMsg.Headers[key])
 		}
 	}
 
@@ -116,4 +135,18 @@ func (d DefaultMarshaler) computeMessageUUIDHeaderKey() string {
 	}
 
 	return DefaultMessageUUIDHeaderKey
+}
+
+func encodeValue(v interface{}, buf *bytes.Buffer) (string, error) {
+	gob.Register(int(0))
+	gob.Register(bool(false))
+	gob.Register([]interface{}{})
+	encoder := gob.NewEncoder(buf)
+	err := encoder.Encode(v)
+	if err != nil {
+		return "", errors.New("can't encode value")
+	}
+	str := string(buf.Bytes())
+	buf.Reset()
+	return str, nil
 }
