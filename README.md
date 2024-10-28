@@ -1,5 +1,5 @@
 # Watermill AMQP Pub/Sub
-<img align="right" width="200" src="https://threedots.tech/watermill-io/watermill-logo.png">
+<img align="right" width="200" src="https://watermill.io/img/gopher.svg">
 
 [![CI Status](https://github.com/ThreeDotsLabs/watermill-amqp/actions/workflows/master.yml/badge.svg)](https://github.com/ThreeDotsLabs/watermill-amqp/actions/workflows/master.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ThreeDotsLabs/watermill-amqp)](https://goreportcard.com/report/github.com/ThreeDotsLabs/watermill-amqp)
