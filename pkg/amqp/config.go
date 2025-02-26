@@ -340,7 +340,7 @@ type ConnectionConfig struct {
 	Reconnect *ReconnectConfig
 }
 
-// QueueNameGenerator generates QueueName based on the topic.
+// ExchangeNameGenerator generates ExchangeName based on the topic.
 type ExchangeNameGenerator func(topic string) string
 
 // GenerateExchangeNameTopicName generates exchangeName equal to the topic.
