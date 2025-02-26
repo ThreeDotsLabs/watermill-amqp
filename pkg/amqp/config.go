@@ -282,14 +282,14 @@ func (c Config) validate(validateConnection bool) error {
 
 	if validateConnection {
 		if c.Connection.AmqpURI == "" {
-			err = multierror.Append(err, errors.New("empty Config.AmqpURI"))
+			err = multierror.Append(err, errors.New("empty Config.Connection.AmqpURI"))
 		}
 	}
 	if c.Marshaler == nil {
 		err = multierror.Append(err, errors.New("missing Config.Marshaler"))
 	}
 	if c.Exchange.GenerateName == nil {
-		err = multierror.Append(err, errors.New("missing Config.GenerateName"))
+		err = multierror.Append(err, errors.New("missing Config.Exchange.GenerateName"))
 	}
 
 	return err
@@ -299,7 +299,7 @@ func (c Config) validatePublisher(validateConnection bool) error {
 	err := c.validate(validateConnection)
 
 	if c.Publish.GenerateRoutingKey == nil {
-		err = multierror.Append(err, errors.New("missing Config.GenerateRoutingKey"))
+		err = multierror.Append(err, errors.New("missing Config.Publish.GenerateRoutingKey"))
 	}
 
 	return err
@@ -340,7 +340,7 @@ type ConnectionConfig struct {
 	Reconnect *ReconnectConfig
 }
 
-// QueueNameGenerator generates QueueName based on the topic.
+// ExchangeNameGenerator generates ExchangeName based on the topic.
 type ExchangeNameGenerator func(topic string) string
 
 // GenerateExchangeNameTopicName generates exchangeName equal to the topic.
