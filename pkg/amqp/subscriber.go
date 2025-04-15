@@ -400,6 +400,12 @@ func (s *subscription) processMessage(
 	msgLogFields := logFields.Add(watermill.LogFields{"message_uuid": msg.UUID})
 	s.logger.Trace("Unmarshaled message", msgLogFields)
 
+	// Redelivered flag is set to true when the message is redelivered.
+	if amqpMsg.Redelivered {
+		msg.Metadata.Set("redeliverd", "true")
+		s.logger.Trace("Message redelivered", msgLogFields)
+	}
+
 	select {
 	case <-s.closing:
 		s.logger.Info("Message not consumed, pub/sub is closing", msgLogFields)
