@@ -74,6 +74,25 @@ func TestDefaultMarshaler_not_persistent(t *testing.T) {
 	assert.EqualValues(t, marshaled.DeliveryMode, 0)
 }
 
+func TestDefaultMarshaler_preprocess_delivery(t *testing.T) {
+	marshaler := amqp.DefaultMarshaler{
+		PreprocessDelivery: func(delivery stdAmqp.Delivery) stdAmqp.Delivery {
+			delivery.Headers["foo"] = "bar"
+			return delivery
+		},
+	}
+
+	delivery := stdAmqp.Delivery{
+		Headers: make(stdAmqp.Table),
+		Body:    []byte("payload"),
+	}
+
+	msg, err := marshaler.Unmarshal(delivery)
+	require.NoError(t, err)
+
+	assert.Equal(t, msg.Metadata.Get("foo"), "bar")
+}
+
 func TestDefaultMarshaler_postprocess_publishing(t *testing.T) {
 	marshaler := amqp.DefaultMarshaler{
 		PostprocessPublishing: func(publishing stdAmqp.Publishing) stdAmqp.Publishing {

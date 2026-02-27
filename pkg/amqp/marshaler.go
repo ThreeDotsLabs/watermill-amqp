@@ -18,6 +18,18 @@ type Marshaler interface {
 }
 
 type DefaultMarshaler struct {
+	// PreprocessDelivery can be used to make some extra processing with amqp.Delivery,
+	// for example remove the x-death header (not a string):
+	//
+	//  amqp.DefaultMarshaler{
+	//		PreprocessDelivery: func(delivery stdAmqp.Delivery) stdAmqp.Delivery {
+	//			delivery.Headers.delete("x-death")
+	//
+	//			return delivery
+	//		},
+	//	}
+	PreprocessDelivery func(delivery amqp.Delivery) amqp.Delivery
+
 	// PostprocessPublishing can be used to make some extra processing with amqp.Publishing,
 	// for example add CorrelationId and ContentType:
 	//
@@ -74,6 +86,10 @@ func (d DefaultMarshaler) Unmarshal(amqpMsg amqp.Delivery) (*message.Message, er
 	msgUUIDStr, err := d.unmarshalMessageUUID(amqpMsg)
 	if err != nil {
 		return nil, err
+	}
+
+	if d.PreprocessDelivery != nil {
+		amqpMsg = d.PreprocessDelivery(amqpMsg)
 	}
 
 	msg := message.NewMessage(msgUUIDStr, amqpMsg.Body)
