@@ -1,16 +1,14 @@
 module github.com/ThreeDotsLabs/watermill-amqp/v3
 
-go 1.21
-
-toolchain go1.23.0
+go 1.23.0
 
 require (
-	github.com/ThreeDotsLabs/watermill v1.3.7
+	github.com/ThreeDotsLabs/watermill v1.5.1
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/pkg/errors v0.9.1
-	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/stretchr/testify v1.9.0
+	github.com/rabbitmq/amqp091-go v1.11.0
+	github.com/stretchr/testify v1.11.0
 )
 
 require (
