@@ -337,12 +337,12 @@ ConsumingLoop:
 		select {
 		case amqpMsg := <-amqpMsgs:
 			if err := s.processMessage(ctx, amqpMsg, s.out, s.logFields); err != nil {
-				s.logger.Error("Processing message failed, sending nack", err, s.logFields)
+				s.logger.Error("Processing message failed, sending reject", err, s.logFields)
 
-				if err := s.nackMsg(amqpMsg); err != nil {
-					s.logger.Error("Cannot nack message", err, s.logFields)
+				if err := s.rejectMsg(amqpMsg); err != nil {
+					s.logger.Error("Cannot reject message", err, s.logFields)
 
-					// something went really wrong when we cannot nack, let's reconnect
+					// something went really wrong when we cannot reject, let's reconnect
 					break ConsumingLoop
 				}
 			}
@@ -431,12 +431,22 @@ func (s *subscription) processMessage(
 		return amqpMsg.Ack(false)
 	case <-msg.Nacked():
 		s.logger.Trace("Message Nacked", msgLogFields)
-		return s.nackMsg(amqpMsg)
+		return s.rejectMsg(amqpMsg)
 	}
 }
 
+// nackMsg requeues unless NoRequeueOnNack is set. Used on shutdown paths: on RabbitMQ
+// >= 4.3 basic.nack leaves quorum delivery-count untouched, so a restart is not
+// charged against delivery-limit.
 func (s *subscription) nackMsg(amqpMsg amqp.Delivery) error {
 	return amqpMsg.Nack(false, !s.config.Consume.NoRequeueOnNack)
+}
+
+// rejectMsg requeues unless NoRequeueOnNack is set, and counts a failed delivery. On
+// RabbitMQ >= 4.3 quorum delivery-limit tracks delivery-count, which basic.nack does
+// not increment.
+func (s *subscription) rejectMsg(amqpMsg amqp.Delivery) error {
+	return amqpMsg.Reject(!s.config.Consume.NoRequeueOnNack)
 }
 
 // IsMessageRedelivered checks whether the message was redelivered by AMQP.

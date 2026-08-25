@@ -22,6 +22,20 @@ Getting started guide: https://watermill.io/docs/getting-started/
 
 Issues: https://github.com/ThreeDotsLabs/watermill/issues
 
+## Quorum queues and delivery limits
+
+Failed deliveries are returned to the broker with `basic.reject`, not `basic.nack`. On RabbitMQ
+4.3 the two are not equivalent: only `basic.reject` increments a quorum queue's `x-delivery-count`,
+so `x-delivery-limit` and dead-lettering do not work if a consumer nacks.
+
+If you use quorum queues, note that a handler which keeps nacking now exhausts the delivery limit
+instead of retrying forever. RabbitMQ 4.0+ applies a default `x-delivery-limit` of 20, so **without
+a dead-letter exchange the message is dropped after 20 attempts**. Configure
+`x-dead-letter-exchange` on queues whose handlers can fail transiently.
+
+Shutdown paths still use `basic.nack`, which leaves `x-delivery-count` untouched, so restarting a
+subscriber does not spend a message's retry budget.
+
 ## Contributing
 
 All contributions are very much welcome. If you'd like to help with Watermill development,

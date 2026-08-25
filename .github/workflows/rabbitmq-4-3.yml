@@ -1,0 +1,18 @@
+# Shared by pr.yml and master.yml so the 4.3 job is defined once.
+name: rabbitmq-4-3
+on:
+  workflow_call:
+jobs:
+  rabbitmq-4-3:
+    name: tests (RabbitMQ 4.3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - run: make test_rabbitmq_4.3
+        timeout-minutes: 30
+      - name: Dump docker logs on failure
+        if: failure()
+        uses: jwalton/gh-docker-logs@a8cb5301950dd4d2b86619cd487b3b281526b178 # v2.2.0
