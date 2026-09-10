@@ -85,7 +85,7 @@ func (c *pooledChannel) DeliveryConfirmationEnabled() bool {
 func (c *pooledChannel) openAMQPChannel() error {
 	var err error
 
-	c.amqpChan, err = c.conn.amqpConnection.Channel()
+	c.amqpChan, err = c.conn.Connection().Channel()
 	if err != nil {
 		return fmt.Errorf("create AMQP channel: %w", err)
 	}
@@ -157,7 +157,7 @@ func newDefaultChannelProvider(conn *ConnectionWrapper, confirmDelivery bool) *d
 }
 
 func (p *defaultChannelProvider) Channel() (channel, error) {
-	amqpChan, err := p.conn.amqpConnection.Channel()
+	amqpChan, err := p.conn.Connection().Channel()
 	if err != nil {
 		return nil, fmt.Errorf("create AMQP channel: %w", err)
 	}
