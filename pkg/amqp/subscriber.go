@@ -173,7 +173,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			}
 
 			select {
-			case <-s.connected:
+			case <-s.Connected():
 				s.logger.Debug("Connection established in ReconnectLoop", logFields)
 				// runSubscriber blocks until connection fails or Close() is called
 				s.runSubscriber(ctx, out, queueName, logFields)
@@ -292,7 +292,7 @@ func (s *Subscriber) openSubscribeChannel(logFields watermill.LogFields) (*amqp.
 		return nil, errors.New("not connected to AMQP")
 	}
 
-	channel, err := s.amqpConnection.Channel()
+	channel, err := s.Connection().Channel()
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot open channel")
 	}
