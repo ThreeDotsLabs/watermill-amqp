@@ -173,7 +173,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			}
 
 			select {
-			case <-s.connected:
+			case <-s.Connected():
 				s.logger.Debug("Connection established in ReconnectLoop", logFields)
 				// runSubscriber blocks until connection fails or Close() is called
 				s.runSubscriber(ctx, out, queueName, logFields)
@@ -292,7 +292,7 @@ func (s *Subscriber) openSubscribeChannel(logFields watermill.LogFields) (*amqp.
 		return nil, errors.New("not connected to AMQP")
 	}
 
-	channel, err := s.amqpConnection.Channel()
+	channel, err := s.Connection().Channel()
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot open channel")
 	}
@@ -335,7 +335,13 @@ func (s *subscription) ProcessMessages(ctx context.Context) {
 ConsumingLoop:
 	for {
 		select {
-		case amqpMsg := <-amqpMsgs:
+		case amqpMsg, ok := <-amqpMsgs:
+			if !ok {
+				// The broker closed the channel; a zero Delivery is not a message.
+				s.logger.Error("Deliveries channel closed, stopping ProcessMessages", nil, s.logFields)
+				break ConsumingLoop
+			}
+
 			if err := s.processMessage(ctx, amqpMsg, s.out, s.logFields); err != nil {
 				s.logger.Error("Processing message failed, sending nack", err, s.logFields)
 

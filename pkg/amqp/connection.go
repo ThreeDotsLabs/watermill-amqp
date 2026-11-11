@@ -16,9 +16,15 @@ type ConnectionWrapper struct {
 
 	logger watermill.LoggerAdapter
 
-	amqpConnection     *amqp.Connection
+	// amqpConnectionLock serialises connecting; it is held for the whole
+	// dial, so readers never take it.
 	amqpConnectionLock sync.Mutex
-	connected          chan struct{}
+
+	// stateLock guards amqpConnection and connected, which a reconnect
+	// replaces while subscribers and publishers read them.
+	stateLock      sync.RWMutex
+	amqpConnection *amqp.Connection
+	connected      chan struct{}
 
 	closing chan struct{}
 	closed  uint32
@@ -63,7 +69,7 @@ func (c *ConnectionWrapper) Close() error {
 
 	c.connectionWaitGroup.Wait()
 
-	if err := c.amqpConnection.Close(); err != nil {
+	if err := c.Connection().Close(); err != nil {
 		c.logger.Error("Connection close error", err, nil)
 	}
 
@@ -93,8 +99,10 @@ func (c *ConnectionWrapper) connect() error {
 	if err != nil {
 		return errors.Wrap(err, "cannot connect to AMQP")
 	}
+	c.stateLock.Lock()
 	c.amqpConnection = connection
 	close(c.connected)
+	c.stateLock.Unlock()
 
 	c.logger.Info("Connected to AMQP", nil)
 
@@ -102,16 +110,31 @@ func (c *ConnectionWrapper) connect() error {
 }
 
 func (c *ConnectionWrapper) Connection() *amqp.Connection {
+	c.stateLock.RLock()
+	defer c.stateLock.RUnlock()
+
 	return c.amqpConnection
 }
 
 func (c *ConnectionWrapper) Connected() chan struct{} {
+	c.stateLock.RLock()
+	defer c.stateLock.RUnlock()
+
 	return c.connected
+}
+
+// markDisconnected replaces the closed connected channel, so waiters block
+// until the next connect closes the new one.
+func (c *ConnectionWrapper) markDisconnected() {
+	c.stateLock.Lock()
+	defer c.stateLock.Unlock()
+
+	c.connected = make(chan struct{})
 }
 
 func (c *ConnectionWrapper) IsConnected() bool {
 	select {
-	case <-c.connected:
+	case <-c.Connected():
 		return true
 	default:
 		return false
@@ -125,18 +148,18 @@ func (c *ConnectionWrapper) Closed() bool {
 func (c *ConnectionWrapper) handleConnectionClose() {
 	for {
 		c.logger.Debug("handleConnectionClose is waiting for c.connected", nil)
-		<-c.connected
+		<-c.Connected()
 		c.logger.Debug("handleConnectionClose is for connection or Pub/Sub close", nil)
 
-		notifyCloseConnection := c.amqpConnection.NotifyClose(make(chan *amqp.Error, 1))
+		notifyCloseConnection := c.Connection().NotifyClose(make(chan *amqp.Error, 1))
 
 		select {
 		case <-c.closing:
 			c.logger.Debug("Stopping handleConnectionClose", nil)
-			c.connected = make(chan struct{})
+			c.markDisconnected()
 			return
 		case err := <-notifyCloseConnection:
-			c.connected = make(chan struct{})
+			c.markDisconnected()
 			c.logger.Error("Received close notification from AMQP, reconnecting", err, nil)
 			c.reconnect()
 		}
