@@ -97,6 +97,11 @@ func (c *pooledChannel) openAMQPChannel() error {
 	if c.confirmDelivery {
 		err = c.amqpChan.Confirm(false)
 		if err != nil {
+			// The channel is open but not in confirm mode; discard it so validate()
+			// does not hand it out as healthy on the next attempt.
+			_ = c.amqpChan.Close()
+			c.amqpChan = nil
+
 			return fmt.Errorf("confirm AMQP channel: %w", err)
 		}
 
@@ -109,12 +114,23 @@ func (c *pooledChannel) openAMQPChannel() error {
 func (c *pooledChannel) validate() error {
 	select {
 	case e := <-c.closedChan:
-		c.logger.Info("AMQP channel was closed. Opening new channel.", watermill.LogFields{"close-error": e.Error()})
+		logFields := watermill.LogFields{}
+		if e != nil {
+			logFields["close-error"] = e.Error()
+		}
+		c.logger.Info("AMQP channel was closed. Opening new channel.", logFields)
 
 		return c.openAMQPChannel()
 	default:
-		return nil
 	}
+
+	// A previous reopen attempt may have failed, leaving the AMQP channel nil
+	// (or closed with its close notification already drained above).
+	if c.amqpChan == nil || c.amqpChan.IsClosed() {
+		return c.openAMQPChannel()
+	}
+
+	return nil
 }
 
 func (c *pooledChannel) Close() error {
@@ -239,6 +255,12 @@ func (p *pooledChannelProvider) Channel() (channel, error) {
 	case c := <-p.chanPool:
 		// Ensure that the existing AMQP channel is still open.
 		if err := c.validate(); err != nil {
+			// Return the broken channel to the pool so the pool does not shrink;
+			// a later Channel() call will retry reopening it. Without this, each
+			// validate failure permanently loses a pool slot and once all slots
+			// are lost every Channel() call blocks forever.
+			p.chanPool <- c
+
 			return nil, err
 		}
 
