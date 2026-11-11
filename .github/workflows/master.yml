@@ -8,3 +8,6 @@ jobs:
     uses: ThreeDotsLabs/watermill/.github/workflows/tests.yml@master
     with:
       stress-tests: true
+
+  rabbitmq-4-3:
+    uses: ./.github/workflows/rabbitmq-4-3.yml

@@ -4,5 +4,10 @@ on:
     branches-ignore:
       - master
 jobs:
+  # 3.7 via docker-compose.yml. Quorum delivery-limit tests skip here (< 3.8).
   ci:
     uses: ThreeDotsLabs/watermill/.github/workflows/tests.yml@master
+
+  # 4.3: runs the quorum delivery-limit regression (nack vs reject counter split).
+  rabbitmq-4-3:
+    uses: ./.github/workflows/rabbitmq-4-3.yml

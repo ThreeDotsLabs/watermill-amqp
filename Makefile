@@ -1,6 +1,10 @@
 up:
 	docker compose up -d
 
+# Default `up` stays on 3.7; this overlays 4.3 for the delivery-limit regression.
+up_rabbitmq_4.3:
+	docker compose -f docker-compose.yml -f docker-compose.rabbitmq-4.3.yml up -d
+
 down:
 	docker compose down
 
@@ -24,6 +28,8 @@ test_codecov: up wait
 
 test_reconnect:
 	go test -tags=reconnect ./...
+
+test_rabbitmq_4.3: up_rabbitmq_4.3 wait test
 
 wait:
 	go run github.com/ThreeDotsLabs/wait-for@latest localhost:5672
