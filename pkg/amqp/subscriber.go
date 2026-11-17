@@ -335,7 +335,13 @@ func (s *subscription) ProcessMessages(ctx context.Context) {
 ConsumingLoop:
 	for {
 		select {
-		case amqpMsg := <-amqpMsgs:
+		case amqpMsg, ok := <-amqpMsgs:
+			if !ok {
+				// The broker cancelled the consumer, for example because the queue was deleted.
+				s.logger.Error("AMQP deliveries channel closed, stopping ProcessMessages", nil, s.logFields)
+				break ConsumingLoop
+			}
+
 			if err := s.processMessage(ctx, amqpMsg, s.out, s.logFields); err != nil {
 				s.logger.Error("Processing message failed, sending nack", err, s.logFields)
 
