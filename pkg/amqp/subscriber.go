@@ -8,6 +8,7 @@ import (
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/cenkalti/backoff/v3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -150,6 +151,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 		}()
 
 		reconnecting := false
+		resubscribeBackoff := s.resubscribeBackoff()
 	ReconnectLoop:
 		for {
 			s.logger.Debug("Waiting for s.connected or s.closing in ReconnectLoop", logFields)
@@ -176,7 +178,9 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 			case <-s.connected:
 				s.logger.Debug("Connection established in ReconnectLoop", logFields)
 				// runSubscriber blocks until connection fails or Close() is called
-				s.runSubscriber(ctx, out, queueName, logFields)
+				if s.runSubscriber(ctx, out, queueName, logFields) {
+					resubscribeBackoff.Reset()
+				}
 			case <-s.closing:
 				s.logger.Debug("Stopping ReconnectLoop (closing)", logFields)
 				break ReconnectLoop
@@ -185,13 +189,38 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 				break ReconnectLoop
 			}
 
-			time.Sleep(time.Millisecond * 100)
+			select {
+			case <-time.After(resubscribeBackoff.NextBackOff()):
+			case <-s.closing:
+				s.logger.Debug("Stopping ReconnectLoop (closing)", logFields)
+				break ReconnectLoop
+			case <-s.closedChan:
+				s.logger.Debug("Stopping ReconnectLoop (subscriber closing)", logFields)
+				break ReconnectLoop
+			case <-ctx.Done():
+				s.logger.Debug("Stopping ReconnectLoop (ctx done)", logFields)
+				break ReconnectLoop
+			}
 
 			reconnecting = true
 		}
 	}(ctx)
 
 	return out, nil
+}
+
+// resubscribeBackoff paces the attempts to consume again after a consumer stopped,
+// using the same settings as the connection reconnect.
+func (s *Subscriber) resubscribeBackoff() *backoff.ExponentialBackOff {
+	reconnectConfig := s.config.Connection.Reconnect
+	if reconnectConfig == nil {
+		reconnectConfig = DefaultReconnectConfig()
+	}
+
+	b := reconnectConfig.backoffConfig()
+	b.Reset()
+
+	return b
 }
 
 func (s *Subscriber) SubscribeInitialize(topic string) (err error) {
@@ -256,11 +285,11 @@ func (s *Subscriber) runSubscriber(
 	out chan *message.Message,
 	queueName string,
 	logFields watermill.LogFields,
-) {
+) (consumed bool) {
 	channel, err := s.openSubscribeChannel(logFields)
 	if err != nil {
 		s.logger.Error("Failed to open channel", err, logFields)
-		return
+		return false
 	}
 	defer func() {
 		if err := channel.Close(); err != nil {
@@ -284,7 +313,7 @@ func (s *Subscriber) runSubscriber(
 
 	s.logger.Info("Starting consuming from AMQP channel", logFields)
 
-	sub.ProcessMessages(ctx)
+	return sub.ProcessMessages(ctx)
 }
 
 func (s *Subscriber) openSubscribeChannel(logFields watermill.LogFields) (*amqp.Channel, error) {
@@ -325,11 +354,13 @@ type subscription struct {
 	config     Config
 }
 
-func (s *subscription) ProcessMessages(ctx context.Context) {
+// ProcessMessages consumes until the channel closes or the subscriber stops.
+// It returns false when the consumer could not be started.
+func (s *subscription) ProcessMessages(ctx context.Context) bool {
 	amqpMsgs, err := s.createConsumer(s.queueName, s.channel)
 	if err != nil {
 		s.logger.Error("Failed to start consuming messages", err, s.logFields)
-		return
+		return false
 	}
 
 ConsumingLoop:
@@ -365,6 +396,8 @@ ConsumingLoop:
 			break ConsumingLoop
 		}
 	}
+
+	return true
 }
 
 func (s *subscription) createConsumer(queueName string, channel *amqp.Channel) (<-chan amqp.Delivery, error) {
